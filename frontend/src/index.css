@@ -1,0 +1,251 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap");
+
+@import "tailwindcss";
+
+/* =========================================================
+   SAHARA GLOBAL DESIGN SYSTEM
+========================================================= */
+
+:root {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  color: #11233e;
+  background: #f8fbff;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* Brand */
+  --sahara-blue: #1769e0;
+  --sahara-blue-dark: #0c4fb1;
+  --sahara-blue-deep: #082f73;
+
+  --sahara-cyan: #0ca9c4;
+  --sahara-teal: #0d9488;
+
+  /* Medical neutral */
+  --sahara-navy: #0b213f;
+  --sahara-navy-soft: #334b68;
+
+  --sahara-bg: #f8fbff;
+  --sahara-bg-soft: #eff7ff;
+  --sahara-surface: #ffffff;
+
+  --sahara-border: #dfeaf5;
+
+  --sahara-text: #12233d;
+  --sahara-muted: #64748b;
+  --sahara-light-text: #8c9bad;
+
+  /* Semantic */
+  --sahara-red: #e43c4f;
+  --sahara-red-dark: #c5293c;
+  --sahara-red-soft: #fff0f2;
+
+  --sahara-green: #16a36a;
+  --sahara-green-soft: #eaf8f1;
+
+  --sahara-amber: #e4a11b;
+  --sahara-amber-soft: #fff7e5;
+
+  /* Radius */
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-xl: 30px;
+
+  /* Shadow */
+  --shadow-soft:
+    0 10px 30px rgba(13, 48, 87, 0.06);
+
+  --shadow-card:
+    0 20px 50px rgba(13, 48, 87, 0.09);
+
+  --shadow-large:
+    0 35px 90px rgba(13, 48, 87, 0.14);
+}
+
+/* =========================================================
+   RESET
+========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--sahara-bg);
+}
+
+body {
+  margin: 0;
+
+  min-width: 320px;
+  min-height: 100vh;
+
+  color: var(--sahara-text);
+
+  background:
+    radial-gradient(
+      circle at 10% 5%,
+      rgba(23, 105, 224, 0.04),
+      transparent 25%
+    ),
+    var(--sahara-bg);
+}
+
+body,
+button,
+input,
+textarea,
+select {
+  font-family: "Inter", sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Manrope", sans-serif;
+  letter-spacing: -0.035em;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+#root {
+  min-height: 100svh;
+}
+
+/* =========================================================
+   SELECTION
+========================================================= */
+
+::selection {
+  color: white;
+  background: var(--sahara-blue);
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar {
+  width: 9px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f3f7fb;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 2px solid #f3f7fb;
+  border-radius: 999px;
+
+  background: #bccdde;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9db2c8;
+}
+
+/* =========================================================
+   HELPER CLASSES
+========================================================= */
+
+.sahara-title-font {
+  font-family: "Manrope", sans-serif;
+}
+
+.sahara-glass {
+  background: rgba(255, 255, 255, 0.86);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  border: 1px solid rgba(216, 229, 242, 0.9);
+}
+
+.sahara-card {
+  border: 1px solid var(--sahara-border);
+  border-radius: var(--radius-lg);
+
+  background: white;
+
+  box-shadow: var(--shadow-soft);
+}
+
+.sahara-gradient-text {
+  color: transparent;
+
+  background:
+    linear-gradient(
+      120deg,
+      #1769e0,
+      #0878d1 52%,
+      #0ca9c4
+    );
+
+  background-clip: text;
+  -webkit-background-clip: text;
+}
+
+/* =========================================================
+   ACCESSIBILITY
+========================================================= */
+
+:focus-visible {
+  outline: 3px solid rgba(23, 105, 224, 0.28);
+  outline-offset: 3px;
+}
+
+/* =========================================================
+   MOTION
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+
+    transition-duration: 0.01ms !important;
+
+    scroll-behavior: auto !important;
+  }
+}
