@@ -29,7 +29,7 @@ const makeActive = async () => {
   }
 };
 
-setInterval(makeActive, 3000);
+setInterval(makeActive, 300_000);
 // Routes
 const aiRoutes = require("./routes/ai.routes");
 const authRoutes = require("./routes/auth.routes");
