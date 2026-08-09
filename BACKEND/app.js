@@ -11,7 +11,25 @@ async function connectDB() {
   console.log("Connected to MongoDB");
 }
 connectDB();
+const makeActive = async () => {
+  try {
+    const resp = await fetch(process.env.BACKEND);
+  
+    if (resp.ok) {
+      console.log(
+        "Server reloaded:",
+        new Date().toLocaleTimeString()
+      );
+    }
+  } catch (err) {
+    console.error(
+      "Keep-alive failed:",
+      err.message
+    );
+  }
+};
 
+setInterval(makeActive, 3000);
 // Routes
 const aiRoutes = require("./routes/ai.routes");
 const authRoutes = require("./routes/auth.routes");
