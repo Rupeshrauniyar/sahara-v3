@@ -437,8 +437,10 @@ const Home = () => {
                   </div>
                 </div>
 
+                {/* EMERGENCY SOS — NOW OPENS SOS PAGE */}
+
                 <Link
-                  to="/ai-bot"
+                  to="/emergency-sos"
                   className="mt-5 flex items-center justify-between rounded-[18px] border border-red-100 bg-red-50/60 p-4"
                 >
 
@@ -561,11 +563,13 @@ const Home = () => {
 
             <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
 
+              {/* EMERGENCY SOS — NOW OPENS SOS PAGE */}
+
               <ServiceCard
                 icon={Activity}
                 title="Emergency SOS"
                 text="Get immediate healthcare guidance."
-                to="/ai-bot"
+                to="/emergency-sos"
                 red
               />
 

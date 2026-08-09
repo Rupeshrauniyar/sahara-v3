@@ -1,1447 +1,1954 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:3000/api";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
-const DOCTOR_API = `${API_BASE_URL}/doctors`;
+import {
+  Activity,
+  ArrowLeft,
+  ArrowRight,
+  BadgeCheck,
+  Building2,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  CircleDollarSign,
+  Clock3,
+  Filter,
+  GraduationCap,
+  HeartPulse,
+  Hospital,
+  LoaderCircle,
+  MapPin,
+  RefreshCw,
+  Search,
+  Sparkles,
+  Star,
+  Stethoscope,
+  UserRound,
+  Video,
+  X,
+} from "lucide-react";
 
-const SPECIALIZATIONS = [
-  "Cardiologist",
-  "Dermatologist",
-  "General Physician",
-  "Gynecologist",
-  "Neurologist",
-  "Orthopedic",
-  "Pediatrician",
-  "Psychiatrist",
-  "Dentist",
-  "ENT",
-  "Ophthalmologist",
-  "Surgeon",
-];
+import saharaLogo from "../assets/sahara-logo.png";
+
+/* =========================================================
+   API
+========================================================= */
+
+const API_URL =
+  import.meta.env.VITE_API_URL ||
+  "http://localhost:3000/api";
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const getToken = () =>
+  localStorage.getItem("token") ||
+  sessionStorage.getItem("token");
+
+const getStoredUser = () => {
+  try {
+    const raw =
+      localStorage.getItem("user") ||
+      sessionStorage.getItem("user");
+
+    return raw
+      ? JSON.parse(raw)
+      : null;
+  } catch {
+    return null;
+  }
+};
+
+const getInitials = (name) => {
+  if (!name) {
+    return "DR";
+  }
+
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+};
+
+const formatFee = (value) => {
+  const number =
+    Number(value || 0);
+
+  return `Rs. ${number.toLocaleString()}`;
+};
+
+const normalizeDoctors = (data) => {
+  if (
+    Array.isArray(data?.doctors)
+  ) {
+    return data.doctors;
+  }
+
+  if (
+    Array.isArray(data?.data)
+  ) {
+    return data.data;
+  }
+
+  return [];
+};
+
+/* =========================================================
+   DOCTOR PAGE
+========================================================= */
 
 const Doctor = () => {
-  const navigate = useNavigate();
+  const navigate =
+    useNavigate();
 
-  const [doctors, setDoctors] = useState([]);
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const location =
+    useLocation();
 
-  const [loading, setLoading] = useState(true);
-  const [loadingDetails, setLoadingDetails] = useState(false);
+  const [doctors, setDoctors] =
+    useState([]);
 
-  const [error, setError] = useState("");
+  const [loading, setLoading] =
+    useState(true);
 
-  const [search, setSearch] = useState("");
+  const [error, setError] =
+    useState("");
 
-  const [filters, setFilters] = useState({
-    specialization: "",
-    city: "",
-    practiceType: "",
-    available: "true",
-  });
+  const [
+    searchTerm,
+    setSearchTerm,
+  ] = useState("");
 
-  const [showFilters, setShowFilters] = useState(false);
+  const [
+    specializationFilter,
+    setSpecializationFilter,
+  ] = useState("");
 
-  // =====================================================
-  // TOKEN
-  // =====================================================
+  const [
+    practiceTypeFilter,
+    setPracticeTypeFilter,
+  ] = useState("");
 
-  const getToken = () =>
-    localStorage.getItem("token") ||
-    sessionStorage.getItem("token");
+  const [
+    availabilityFilter,
+    setAvailabilityFilter,
+  ] = useState("");
 
-  // =====================================================
-  // API
-  // =====================================================
+  const [
+    cityFilter,
+    setCityFilter,
+  ] = useState("");
 
-  const apiRequest = async (url, options = {}) => {
-    const token = getToken();
+  const [
+    filtersOpen,
+    setFiltersOpen,
+  ] = useState(false);
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        ...(token
-          ? {
-              Authorization: `Bearer ${token}`,
-            }
-          : {}),
-        ...(options.headers || {}),
-      },
-    });
+  const [
+    selectedDoctor,
+    setSelectedDoctor,
+  ] = useState(null);
 
-    let data = null;
+  const [
+    doctorDetailsLoading,
+    setDoctorDetailsLoading,
+  ] = useState(false);
 
-    try {
-      data = await response.json();
-    } catch {
-      data = null;
-    }
+  const user =
+    getStoredUser();
 
-    if (!response.ok) {
-      throw new Error(
-        data?.message ||
-          "Unable to load doctors."
-      );
-    }
+  /* =====================================================
+     LOAD DOCTORS
+  ===================================================== */
 
-    return data;
-  };
+  const loadDoctors =
+    async () => {
+      const token =
+        getToken();
 
-  // =====================================================
-  // LOAD DOCTORS
-  // =====================================================
+      setLoading(true);
+      setError("");
 
-  const loadDoctors = async (overrideFilters = filters, overrideSearch = search) => {
-    setLoading(true);
-    setError("");
+      if (!token) {
+        setDoctors([]);
+        setLoading(false);
 
-    try {
-      const params = new URLSearchParams();
+        setError(
+          "Please sign in to view available doctors.",
+        );
 
-      // Search and filters are intentionally separate so the
-      // search box cannot accidentally overwrite a selected filter.
-      if (overrideSearch.trim()) {
-        params.set("search", overrideSearch.trim());
+        return;
       }
 
-      if (overrideFilters.specialization) {
-        params.set("specialization", overrideFilters.specialization);
+      try {
+        const params =
+          new URLSearchParams();
+
+        if (
+          specializationFilter
+        ) {
+          params.set(
+            "specialization",
+            specializationFilter,
+          );
+        }
+
+        if (practiceTypeFilter) {
+          params.set(
+            "practiceType",
+            practiceTypeFilter,
+          );
+        }
+
+        if (availabilityFilter) {
+          params.set(
+            "available",
+            availabilityFilter,
+          );
+        }
+
+        if (cityFilter.trim()) {
+          params.set(
+            "city",
+            cityFilter.trim(),
+          );
+        }
+
+        params.set(
+          "limit",
+          "100",
+        );
+
+        const query =
+          params.toString();
+
+        const response =
+          await fetch(
+            `${API_URL}/doctors${
+              query
+                ? `?${query}`
+                : ""
+            }`,
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            },
+          );
+
+        const data =
+          await response.json();
+
+        if (!response.ok) {
+          if (
+            response.status ===
+            401
+          ) {
+            throw new Error(
+              "Your session has expired. Please sign in again.",
+            );
+          }
+
+          throw new Error(
+            data?.message ||
+              "Unable to load doctors.",
+          );
+        }
+
+        setDoctors(
+          normalizeDoctors(data),
+        );
+      } catch (loadError) {
+        console.error(
+          "Doctor loading error:",
+          loadError,
+        );
+
+        setDoctors([]);
+
+        setError(
+          loadError.message ||
+            "Unable to load doctors.",
+        );
+      } finally {
+        setLoading(false);
       }
+    };
 
-      if (overrideFilters.city.trim()) {
-        params.set("city", overrideFilters.city.trim());
-      }
-
-      if (overrideFilters.practiceType) {
-        params.set("practiceType", overrideFilters.practiceType);
-      }
-
-      if (overrideFilters.available) {
-        params.set("available", overrideFilters.available);
-      }
-
-      params.set("limit", "50");
-
-      const url = `${DOCTOR_API}?${params.toString()}`;
-      const data = await apiRequest(url);
-
-      // Support the common response shapes:
-      // { doctors: [...] }, { data: [...] }, or [...]
-      const doctorList = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.doctors)
-          ? data.doctors
-          : Array.isArray(data?.data)
-            ? data.data
-            : [];
-
-      setDoctors(doctorList);
-    } catch (err) {
-      setError(err.message || "Unable to load doctors.");
-      setDoctors([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial load
   useEffect(() => {
     loadDoctors();
-  }, []);
+  }, [
+    specializationFilter,
+    practiceTypeFilter,
+    availabilityFilter,
+  ]);
 
-  // =====================================================
-  // FILTER
-  // =====================================================
+  /* =====================================================
+     LOAD ONE DOCTOR
+  ===================================================== */
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
+  const openDoctor =
+    async (doctor) => {
+      if (!doctor?._id) {
+        setSelectedDoctor(
+          doctor,
+        );
 
-    setFilters((previous) => ({
-      ...previous,
-      [name]: value,
-    }));
-  };
-
-  const clearFilters = async () => {
-    const resetFilters = {
-      specialization: "",
-      city: "",
-      practiceType: "",
-      available: "true",
-    };
-
-    setSearch("");
-    setFilters(resetFilters);
-
-    // Do not use setTimeout here. React state updates are async,
-    // so the previous implementation could send stale filters.
-    await loadDoctors(resetFilters, "");
-  };
-
-  // =====================================================
-  // SEARCH
-  // =====================================================
-
-  const handleSearch = (e) => {
-    e.preventDefault();
-    loadDoctors();
-  };
-
-  // =====================================================
-  // GET SINGLE DOCTOR
-  // =====================================================
-
-  const openDoctor = async (doctorId) => {
-    setLoadingDetails(true);
-    setError("");
-
-    try {
-      const data = await apiRequest(
-        `${DOCTOR_API}/${doctorId}`
-      );
+        return;
+      }
 
       setSelectedDoctor(
-        data?.doctor || null
+        doctor,
       );
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoadingDetails(false);
-    }
-  };
 
-  // =====================================================
-  // BOOK APPOINTMENT
-  // =====================================================
+      setDoctorDetailsLoading(
+        true,
+      );
 
-  const bookAppointment = (doctorId) => {
-    setSelectedDoctor(null);
+      try {
+        const token =
+          getToken();
 
-    navigate(`/appointment?doctor=${encodeURIComponent(doctorId)}`);
-  };
+        const response =
+          await fetch(
+            `${API_URL}/doctors/${doctor._id}`,
+            {
+              headers: {
+                Authorization:
+                  `Bearer ${token}`,
+              },
+            },
+          );
 
-  // =====================================================
-  // STATS
-  // =====================================================
+        const data =
+          await response.json();
 
-  const stats = useMemo(() => {
-    const available = doctors.filter(
-      (doctor) =>
-        doctor.isAvailable === true
-    ).length;
+        if (!response.ok) {
+          throw new Error(
+            data?.message ||
+              "Unable to load doctor details.",
+          );
+        }
 
-    const hospitalDoctors =
-      doctors.filter(
-        (doctor) =>
-          doctor.practiceType ===
-          "Hospital"
-      ).length;
+        setSelectedDoctor(
+          data?.doctor ||
+            doctor,
+        );
+      } catch (detailsError) {
+        console.error(
+          "Doctor detail error:",
+          detailsError,
+        );
 
-    const independentDoctors =
-      doctors.filter(
-        (doctor) =>
-          doctor.practiceType ===
-          "Independent"
-      ).length;
-
-    return {
-      total: doctors.length,
-      available,
-      hospitalDoctors,
-      independentDoctors,
+        /*
+          Keep the doctor card data in the
+          modal even if the detailed request fails.
+        */
+      } finally {
+        setDoctorDetailsLoading(
+          false,
+        );
+      }
     };
-  }, [doctors]);
 
-  // =====================================================
-  // RENDER
-  // =====================================================
+  /* =====================================================
+     BOOK DOCTOR
+  ===================================================== */
+
+  const bookDoctor = (
+    doctor,
+  ) => {
+    if (!doctor?._id) {
+      return;
+    }
+
+    navigate(
+      "/appointment",
+      {
+        state: {
+          selectedDoctor:
+            doctor,
+        },
+      },
+    );
+  };
+
+  /* =====================================================
+     SPECIALIZATIONS
+  ===================================================== */
+
+  const specializations =
+    useMemo(() => {
+      const values =
+        doctors
+          .map(
+            (doctor) =>
+              doctor.specialization,
+          )
+          .filter(Boolean);
+
+      return [
+        ...new Set(values),
+      ].sort();
+    }, [doctors]);
+
+  /* =====================================================
+     CLIENT SEARCH
+  ===================================================== */
+
+  const filteredDoctors =
+    useMemo(() => {
+      const query =
+        searchTerm
+          .trim()
+          .toLowerCase();
+
+      return doctors.filter(
+        (doctor) => {
+          const doctorName =
+            doctor.user
+              ?.fullName ||
+            doctor.fullName ||
+            "";
+
+          const specialization =
+            doctor.specialization ||
+            "";
+
+          const qualification =
+            doctor.qualification ||
+            "";
+
+          const hospitalName =
+            doctor.hospital
+              ?.name ||
+            "";
+
+          const hospitalCity =
+            doctor.hospital
+              ?.city ||
+            "";
+
+          const practiceType =
+            doctor.practiceType ||
+            "";
+
+          if (!query) {
+            return true;
+          }
+
+          return [
+            doctorName,
+            specialization,
+            qualification,
+            hospitalName,
+            hospitalCity,
+            practiceType,
+          ].some((value) =>
+            String(value)
+              .toLowerCase()
+              .includes(query),
+          );
+        },
+      );
+    }, [
+      doctors,
+      searchTerm,
+    ]);
+
+  /* =====================================================
+     RESET FILTERS
+  ===================================================== */
+
+  const resetFilters = () => {
+    setSearchTerm("");
+    setSpecializationFilter("");
+    setPracticeTypeFilter("");
+    setAvailabilityFilter("");
+    setCityFilter("");
+  };
+
+  const hasFilters =
+    searchTerm ||
+    specializationFilter ||
+    practiceTypeFilter ||
+    availabilityFilter ||
+    cityFilter;
+
+  /* =====================================================
+     RENDER
+  ===================================================== */
 
   return (
-    <div className="min-h-screen bg-[#F6F9FD] text-[#0A1F3D]">
+    <div className="min-h-screen bg-[#F7F9FD] text-[#10233F]">
 
       {/* =================================================
-          HEADER
+          NAVBAR
       ================================================= */}
 
-      <div className="border-b border-[#DCE6F6] bg-white">
+      <header className="sticky top-0 z-40 border-b border-[#E1E8F1] bg-white/95 backdrop-blur-xl">
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="mx-auto flex min-h-[76px] max-w-[1440px] items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
 
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+          <Link
+            to="/"
+            aria-label="Return to SAHARA home"
+            className="flex shrink-0 items-center"
+          >
+            <img
+              src={saharaLogo}
+              alt="SAHARA"
+              className="h-[47px] w-auto max-w-[180px] object-contain"
+            />
+          </Link>
 
-            <div>
+          <div className="flex items-center gap-2 sm:gap-3">
 
-              <p className="text-xs font-black tracking-[0.18em] text-[#1657CC] uppercase">
-                SAHARA HEALTHCARE
-              </p>
+            {user && (
+              <Link
+                to="/dashboard"
+                className="hidden min-h-[40px] items-center gap-2 rounded-[11px] border border-[#DFE6EF] bg-white px-4 text-[10px] font-extrabold !text-[#536B83] transition hover:border-[#C8D4E1] hover:bg-[#F8FAFD] hover:!text-[#1717E8] sm:inline-flex"
+              >
+                <span>
+                  Dashboard
+                </span>
+              </Link>
+            )}
 
-              <h1 className="mt-2 font-serif text-3xl font-semibold tracking-[-0.04em] text-[#0A1F3D] sm:text-4xl lg:text-5xl">
-                Find the right doctor.
-              </h1>
-
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-[#7184A4] sm:text-base">
-                Search trusted healthcare professionals,
-                compare their expertise and availability,
-                then book a consultation in a few clicks.
-              </p>
-
-            </div>
-
-            {/* Stats */}
-
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-
-              <MiniStat
-                value={stats.total}
-                label="Doctors"
-              />
-
-              <MiniStat
-                value={stats.available}
-                label="Available"
-              />
-
-              <MiniStat
-                value={stats.hospitalDoctors}
-                label="Hospital"
-              />
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* =================================================
-          CONTENT
-      ================================================= */}
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-7">
-
-        {/* Search */}
-
-        <form
-          onSubmit={handleSearch}
-          className="rounded-[26px] border border-[#DCE6F6] bg-white p-4 shadow-[0_20px_50px_-35px_rgba(10,31,61,.3)] sm:p-5"
-        >
-
-          <div className="flex flex-col lg:flex-row gap-3">
-
-            <div className="relative flex-1">
-
-              <SearchIcon />
-
-              <input
-                type="text"
-                value={search}
-                onChange={(e) =>
-                  setSearch(e.target.value)
-                }
-                placeholder="Search by specialization..."
-                className="h-12 w-full rounded-xl border border-[#DCE6F6] bg-[#F8FAFD] pl-11 pr-4 text-sm font-medium text-[#0A1F3D] outline-none transition-all placeholder:text-[#A6B2C7] hover:border-[#BFCDE2] focus:border-[#1657CC] focus:bg-white focus:ring-4 focus:ring-[#1657CC]/10"
-              />
-
-            </div>
-
-            <button
-              type="submit"
-              className="h-12 rounded-xl bg-[#1657CC] px-6 text-sm font-bold text-white shadow-[0_14px_30px_-16px_rgba(22,87,204,.8)] transition hover:bg-[#0C3B90] hover:-translate-y-0.5"
+            <Link
+              to="/ai-bot"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-[11px] bg-[#EEF2FF] px-4 text-[10px] font-extrabold !text-[#1717E8] transition hover:bg-[#E5E9FF]"
             >
-              Search doctors
-            </button>
+              <Sparkles
+                size={15}
+              />
 
-            <button
-              type="button"
-              onClick={() =>
-                setShowFilters(
-                  !showFilters
-                )
-              }
-              className="h-12 rounded-xl border border-[#DCE6F6] bg-white px-5 text-sm font-bold text-[#57678A] transition hover:border-[#1657CC] hover:bg-[#F8FAFD] hover:text-[#1657CC]"
-            >
-              Filters
-              <span className="ml-2">
-                {showFilters ? "−" : "+"}
+              <span className="hidden !text-[#1717E8] sm:inline">
+                SAHARA AI
               </span>
-            </button>
-
+            </Link>
           </div>
+        </div>
+      </header>
 
+      {/* =================================================
+          HERO
+      ================================================= */}
 
-          {/* FILTERS */}
+      <section className="relative overflow-hidden border-b border-[#E4EAF2] bg-[radial-gradient(circle_at_78%_22%,rgba(23,23,232,0.07),transparent_27%),linear-gradient(135deg,#FFFFFF,#F1F5FF)]">
 
-          {showFilters && (
-
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-4 pt-4 border-t border-slate-100">
-
-              <FilterSelect
-                name="specialization"
-                value={
-                  filters.specialization
-                }
-                onChange={
-                  handleFilterChange
-                }
-                placeholder="All specializations"
-                options={SPECIALIZATIONS}
-              />
-
-              <input
-                name="city"
-                value={filters.city}
-                onChange={
-                  handleFilterChange
-                }
-                placeholder="City e.g. Kathmandu"
-                className="h-11 w-full rounded-xl border border-[#DCE6F6] bg-[#F8FAFD] px-3 text-sm font-medium text-[#0A1F3D] outline-none transition focus:border-[#1657CC] focus:bg-white focus:ring-4 focus:ring-[#1657CC]/10"
-              />
-
-              <FilterSelect
-                name="practiceType"
-                value={
-                  filters.practiceType
-                }
-                onChange={
-                  handleFilterChange
-                }
-                placeholder="All practice types"
-                options={[
-                  "Hospital",
-                  "Independent",
-                ]}
-              />
-
-              <div className="flex gap-2">
-
-                <select
-                  name="available"
-                  value={filters.available}
-                  onChange={
-                    handleFilterChange
-                  }
-                  className="h-11 flex-1 rounded-xl border border-[#DCE6F6] bg-[#F8FAFD] px-3 text-sm font-medium text-[#0A1F3D] outline-none focus:border-[#1657CC] focus:bg-white"
-                >
-                  <option value="">
-                    All doctors
-                  </option>
-
-                  <option value="true">
-                    Available now
-                  </option>
-
-                  <option value="false">
-                    Currently unavailable
-                  </option>
-
-                </select>
-
-                <button
-                  type="button"
-                  onClick={clearFilters}
-                  className="rounded-xl border border-[#DCE6F6] px-3 text-xs font-bold text-[#57678A] transition hover:border-[#1657CC] hover:bg-[#F8FAFD] hover:text-[#1657CC]"
-                >
-                  Clear
-                </button>
-
-              </div>
-
-            </div>
-
-          )}
-
-        </form>
-
-
-        {/* Error */}
-
-        {error && (
-
-          <div className="mt-5 bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-700 flex justify-between gap-3">
-
-            <span>{error}</span>
-
-            <button
-              onClick={() =>
-                setError("")
-              }
-              className="font-bold"
-            >
-              ×
-            </button>
-
-          </div>
-
-        )}
-
-
-        {/* Result header */}
-
-        <div className="flex items-center justify-between mt-7 mb-4">
+        <div className="mx-auto grid max-w-[1440px] gap-10 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[1fr_0.55fr] lg:items-center lg:px-10">
 
           <div>
 
-            <h2 className="text-lg font-black text-slate-900">
-              Doctors
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-[10px] font-extrabold !text-[#72859A] transition hover:!text-[#1717E8]"
+            >
+              <ArrowLeft
+                size={14}
+              />
+
+              <span>
+                Back to home
+              </span>
+            </Link>
+
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[#D8DFFF] bg-white px-3 py-2 shadow-sm">
+
+              <Stethoscope
+                size={14}
+                className="text-[#1717E8]"
+              />
+
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#1717E8]">
+                Doctor Network
+              </span>
+            </div>
+
+            <h1 className="mt-5 max-w-[760px] font-[Manrope] text-[38px] font-extrabold leading-[1.05] tracking-[-0.05em] text-[#102846] sm:text-[51px]">
+
+              Find the right doctor
+              <span className="block text-[#1717E8]">
+                for your healthcare needs.
+              </span>
+            </h1>
+
+            <p className="mt-5 max-w-[650px] text-[12px] leading-6 text-[#6E8195] sm:text-[13px]">
+
+              Browse registered doctors by specialization,
+              practice type, hospital and availability.
+              Review their professional information before
+              booking an appointment.
+            </p>
+          </div>
+
+          {/* HERO SUMMARY */}
+
+          <div className="grid grid-cols-2 gap-3">
+
+            <HeroMetric
+              value={
+                doctors.length
+              }
+              label="Doctors"
+              icon={Stethoscope}
+            />
+
+            <HeroMetric
+              value={
+                specializations.length
+              }
+              label="Specialties"
+              icon={HeartPulse}
+            />
+
+            <HeroMetric
+              value={
+                doctors.filter(
+                  (doctor) =>
+                    doctor.isAvailable,
+                ).length
+              }
+              label="Available"
+              icon={Activity}
+              green
+            />
+
+            <HeroMetric
+              value={
+                doctors.filter(
+                  (doctor) =>
+                    doctor.practiceType ===
+                    "Hospital",
+                ).length
+              }
+              label="Hospital Doctors"
+              icon={Hospital}
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* =================================================
+          MAIN
+      ================================================= */}
+
+      <main className="mx-auto max-w-[1440px] px-5 py-8 sm:px-8 lg:px-10 lg:py-10">
+
+        {/* =================================================
+            SEARCH
+        ================================================= */}
+
+        <section className="rounded-[22px] border border-[#DFE7F0] bg-white p-4 shadow-[0_12px_32px_rgba(24,48,78,0.045)] sm:p-5">
+
+          <div className="flex flex-col gap-3 lg:flex-row">
+
+            <div className="relative flex-1">
+
+              <Search
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-[#91A1B1]"
+              />
+
+              <input
+                value={
+                  searchTerm
+                }
+                onChange={(event) =>
+                  setSearchTerm(
+                    event.target
+                      .value,
+                  )
+                }
+                placeholder="Search doctor, specialty, qualification, hospital..."
+                className="h-[52px] w-full rounded-[14px] border border-[#DBE5EF] bg-[#F9FBFD] pl-12 pr-4 text-[12px] font-medium text-[#2C435D] outline-none transition placeholder:text-[#9BA8B6] focus:border-[#1717E8] focus:bg-white focus:ring-4 focus:ring-[#1717E8]/10"
+              />
+            </div>
+
+            <div className="flex gap-2">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setFiltersOpen(
+                    (value) =>
+                      !value,
+                  )
+                }
+                className={`inline-flex min-h-[52px] items-center gap-2 rounded-[14px] border px-4 text-[10px] font-extrabold transition ${
+                  filtersOpen ||
+                  hasFilters
+                    ? "border-[#BBC7FF] bg-[#F1F3FF] !text-[#1717E8]"
+                    : "border-[#DBE5EF] bg-white !text-[#526A82]"
+                }`}
+              >
+                <Filter
+                  size={15}
+                />
+
+                <span
+                  className={
+                    filtersOpen ||
+                    hasFilters
+                      ? "!text-[#1717E8]"
+                      : "!text-[#526A82]"
+                  }
+                >
+                  Filters
+                </span>
+
+                <ChevronDown
+                  size={14}
+                  className={`transition ${
+                    filtersOpen
+                      ? "rotate-180"
+                      : ""
+                  }`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  loadDoctors
+                }
+                className="grid h-[52px] w-[52px] place-items-center rounded-[14px] border border-[#DBE5EF] bg-white text-[#657A91] transition hover:bg-[#F6F8FC] hover:text-[#1717E8]"
+                title="Refresh doctors"
+              >
+                <RefreshCw
+                  size={16}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* FILTER PANEL */}
+
+          {filtersOpen && (
+            <div className="mt-4 grid gap-4 border-t border-[#EDF2F7] pt-4 sm:grid-cols-2 lg:grid-cols-4">
+
+              <FilterSelect
+                label="Specialization"
+                value={
+                  specializationFilter
+                }
+                onChange={
+                  setSpecializationFilter
+                }
+                options={
+                  specializations
+                }
+                placeholder="All specialties"
+              />
+
+              <FilterSelect
+                label="Practice type"
+                value={
+                  practiceTypeFilter
+                }
+                onChange={
+                  setPracticeTypeFilter
+                }
+                options={[
+                  "Independent",
+                  "Hospital",
+                ]}
+                placeholder="All practice types"
+              />
+
+              <FilterSelect
+                label="Availability"
+                value={
+                  availabilityFilter
+                }
+                onChange={
+                  setAvailabilityFilter
+                }
+                options={[
+                  {
+                    value:
+                      "true",
+                    label:
+                      "Available",
+                  },
+                  {
+                    value:
+                      "false",
+                    label:
+                      "Unavailable",
+                  },
+                ]}
+                placeholder="Any availability"
+              />
+
+              <div>
+
+                <label className="mb-2 block text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#74869A]">
+                  City
+                </label>
+
+                <div className="flex gap-2">
+
+                  <input
+                    value={
+                      cityFilter
+                    }
+                    onChange={(event) =>
+                      setCityFilter(
+                        event.target
+                          .value,
+                      )
+                    }
+                    onKeyDown={(event) => {
+                      if (
+                        event.key ===
+                        "Enter"
+                      ) {
+                        loadDoctors();
+                      }
+                    }}
+                    placeholder="e.g. Kathmandu"
+                    className="h-[44px] min-w-0 flex-1 rounded-[12px] border border-[#DBE5EF] bg-[#FAFCFE] px-3 text-[11px] text-[#334B65] outline-none focus:border-[#1717E8]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={
+                      loadDoctors
+                    }
+                    className="grid h-[44px] w-[44px] shrink-0 place-items-center rounded-[12px] bg-[#1717E8] text-white"
+                  >
+                    <Search
+                      size={15}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {hasFilters && (
+                <div className="sm:col-span-2 lg:col-span-4">
+
+                  <button
+                    type="button"
+                    onClick={
+                      resetFilters
+                    }
+                    className="text-[9.5px] font-extrabold !text-red-600"
+                  >
+                    Clear all filters
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* =================================================
+            RESULT HEADER
+        ================================================= */}
+
+        <div className="mt-8 flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+
+          <div>
+
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#1717E8]">
+              Doctor Directory
+            </p>
+
+            <h2 className="mt-1 font-[Manrope] text-[22px] font-extrabold tracking-[-0.03em] text-[#17304D]">
+              Available Healthcare Professionals
             </h2>
-
-            {!loading && (
-              <p className="text-xs text-slate-400 mt-1">
-                {doctors.length} professionals found
-              </p>
-            )}
-
           </div>
 
-          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400">
-            <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-            Available doctors can be booked
-          </div>
-
+          {!loading && (
+            <p className="text-[10px] font-semibold text-[#8292A3]">
+              Showing{" "}
+              <strong className="text-[#314961]">
+                {
+                  filteredDoctors.length
+                }
+              </strong>{" "}
+              doctor
+              {filteredDoctors.length ===
+              1
+                ? ""
+                : "s"}
+            </p>
+          )}
         </div>
 
+        {/* =================================================
+            ERROR
+        ================================================= */}
+
+        {error && (
+          <div className="mt-6 rounded-[18px] border border-red-200 bg-red-50 p-5">
+
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <div>
+
+                <p className="text-[11px] font-extrabold text-red-800">
+                  Unable to show doctors
+                </p>
+
+                <p className="mt-1 text-[10px] leading-5 text-red-600">
+                  {error}
+                </p>
+              </div>
+
+              {!getToken() ? (
+                <Link
+                  to="/login"
+                  state={{
+                    from:
+                      location.pathname,
+                  }}
+                  className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[11px] bg-red-600 px-4 text-[9.5px] font-extrabold !text-white"
+                >
+                  <span className="!text-white">
+                    Sign in
+                  </span>
+
+                  <ArrowRight
+                    size={13}
+                  />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={
+                    loadDoctors
+                  }
+                  className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-[11px] bg-white px-4 text-[9.5px] font-extrabold text-red-600 shadow-sm"
+                >
+                  <RefreshCw
+                    size={13}
+                  />
+
+                  Try Again
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* =================================================
             LOADING
         ================================================= */}
 
         {loading && (
+          <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-
-            {[1, 2, 3, 4, 5, 6].map(
-              (item) => (
-                <DoctorSkeleton
-                  key={item}
-                />
-              )
-            )}
-
+            {Array.from({
+              length: 6,
+            }).map((_, index) => (
+              <DoctorSkeleton
+                key={index}
+              />
+            ))}
           </div>
-
         )}
-
 
         {/* =================================================
             EMPTY
         ================================================= */}
 
         {!loading &&
-          doctors.length === 0 && (
+          !error &&
+          filteredDoctors.length ===
+            0 && (
+            <div className="mt-6 rounded-[24px] border border-[#E0E7EF] bg-white px-6 py-16 text-center">
 
-            <EmptyDoctors
-              onReset={clearFilters}
-            />
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-[19px] bg-[#EEF2FF] text-[#1717E8]">
 
+                <Stethoscope
+                  size={27}
+                />
+              </div>
+
+              <h3 className="mt-5 font-[Manrope] text-[18px] font-extrabold text-[#29425D]">
+                No doctors found
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-[500px] text-[10.5px] leading-6 text-[#8393A4]">
+                Try changing your search term or removing some filters.
+              </p>
+
+              <button
+                type="button"
+                onClick={
+                  resetFilters
+                }
+                className="mt-5 rounded-[11px] bg-[#1717E8] px-5 py-3 text-[9.5px] font-extrabold !text-white"
+              >
+                <span className="!text-white">
+                  Reset filters
+                </span>
+              </button>
+            </div>
           )}
 
-
         {/* =================================================
-            DOCTORS
+            DOCTOR GRID
         ================================================= */}
 
         {!loading &&
-          doctors.length > 0 && (
+          !error &&
+          filteredDoctors.length >
+            0 && (
+            <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
 
-            <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
-
-              {doctors.map(
+              {filteredDoctors.map(
                 (doctor) => (
-
                   <DoctorCard
-                    key={doctor._id}
-                    doctor={doctor}
+                    key={
+                      doctor._id
+                    }
+                    doctor={
+                      doctor
+                    }
                     onView={() =>
                       openDoctor(
-                        doctor._id
+                        doctor,
                       )
                     }
                     onBook={() =>
-                      bookAppointment(
-                        doctor._id
+                      bookDoctor(
+                        doctor,
                       )
                     }
                   />
-
-                )
+                ),
               )}
-
             </div>
-
           )}
 
+        {/* =================================================
+            BOTTOM CTA
+        ================================================= */}
+
+        <section className="mt-12 overflow-hidden rounded-[25px] border border-[#DCE4F1] bg-[linear-gradient(135deg,#F0F3FF,#E8EDFF)] p-6 sm:p-8">
+
+          <div className="flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+
+            <div>
+
+              <div className="flex items-center gap-2">
+
+                <Sparkles
+                  size={16}
+                  className="text-[#1717E8]"
+                />
+
+                <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
+                  Not sure who to see?
+                </p>
+              </div>
+
+              <h3 className="mt-2 font-[Manrope] text-[22px] font-extrabold tracking-[-0.035em] text-[#18324E]">
+                Ask SAHARA AI for healthcare navigation.
+              </h3>
+
+              <p className="mt-2 max-w-[650px] text-[10px] leading-5 text-[#73869A]">
+                Describe what kind of healthcare support you are looking for and SAHARA can help guide you toward an appropriate service.
+              </p>
+            </div>
+
+            <Link
+              to="/ai-bot"
+              className="inline-flex min-h-[47px] shrink-0 items-center justify-center gap-2 rounded-[12px] bg-[#1717E8] px-5 text-[10px] font-extrabold !text-white shadow-[0_12px_28px_rgba(23,23,232,0.17)]"
+            >
+              <Sparkles
+                size={15}
+                className="text-white"
+              />
+
+              <span className="!text-white">
+                Ask SAHARA AI
+              </span>
+            </Link>
+          </div>
+        </section>
       </main>
 
-
       {/* =================================================
-          DOCTOR DETAIL MODAL
+          DOCTOR MODAL
       ================================================= */}
 
-      {(selectedDoctor ||
-        loadingDetails) && (
-
-        <DoctorDetails
-          doctor={selectedDoctor}
-          loading={loadingDetails}
-          onClose={() =>
-            setSelectedDoctor(null)
+      {selectedDoctor && (
+        <DoctorModal
+          doctor={
+            selectedDoctor
           }
-          onBook={bookAppointment}
+          loading={
+            doctorDetailsLoading
+          }
+          onClose={() =>
+            setSelectedDoctor(
+              null,
+            )
+          }
+          onBook={() =>
+            bookDoctor(
+              selectedDoctor,
+            )
+          }
         />
-
       )}
-
     </div>
   );
 };
 
-
-// =========================================================
-// DOCTOR CARD
-// =========================================================
+/* =========================================================
+   DOCTOR CARD
+========================================================= */
 
 const DoctorCard = ({
   doctor,
   onView,
   onBook,
 }) => {
-
   const name =
     doctor.user?.fullName ||
+    doctor.fullName ||
     "Doctor";
 
-  const image =
-    doctor.user?.profileImage;
-
-  const hospital =
+  const hospitalName =
     doctor.hospital?.name;
 
+  const city =
+    doctor.hospital?.city;
+
   const available =
-    doctor.isAvailable === true;
+    Boolean(
+      doctor.isAvailable,
+    );
 
   return (
-    <div
-      onClick={onView}
-      className="group cursor-pointer overflow-hidden rounded-[26px] border border-[#DCE6F6] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#BFD3F4] hover:shadow-[0_25px_55px_-30px_rgba(10,31,61,.35)]"
-    >
+    <article className="group overflow-hidden rounded-[22px] border border-[#DFE7F0] bg-white shadow-[0_12px_32px_rgba(20,46,79,0.045)] transition-all duration-300 hover:-translate-y-1 hover:border-[#C9D7E6] hover:shadow-[0_20px_45px_rgba(20,46,79,0.08)]">
 
-      <div className="p-5">
+      <div className="p-5 sm:p-6">
+
+        {/* TOP */}
 
         <div className="flex items-start gap-4">
 
-          {/* Avatar */}
+          <div className="relative shrink-0">
 
-          {image ? (
-
-            <img
-              src={image}
-              alt={name}
-              className="w-16 h-16 rounded-2xl object-cover border border-slate-100"
-            />
-
-          ) : (
-
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center text-xl font-black shrink-0">
-              {getInitials(name)}
-            </div>
-
-          )}
-
-          <div className="flex-1 min-w-0">
-
-            <div className="flex items-start justify-between gap-2">
-
-              <div>
-
-                <h3 className="font-black text-slate-900 truncate">
-                  Dr. {name}
-                </h3>
-
-                <p className="text-xs text-blue-600 font-bold mt-1">
-                  {doctor.specialization ||
-                    "Medical Specialist"}
-                </p>
-
-              </div>
-
-              <span
-                className={`w-2.5 h-2.5 rounded-full shrink-0 mt-2 ${
-                  available
-                    ? "bg-emerald-500"
-                    : "bg-slate-300"
-                }`}
+            {doctor.user
+              ?.profileImage ? (
+              <img
+                src={
+                  doctor.user
+                    .profileImage
+                }
+                alt={`Dr. ${name}`}
+                className="h-16 w-16 rounded-[18px] object-cover"
               />
+            ) : (
+              <div className="grid h-16 w-16 place-items-center rounded-[18px] bg-[#EEF2FF] font-[Manrope] text-[15px] font-extrabold text-[#1717E8]">
+                {getInitials(
+                  name,
+                )}
+              </div>
+            )}
 
+            <span
+              className={`absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-[3px] border-white ${
+                available
+                  ? "bg-emerald-500"
+                  : "bg-slate-300"
+              }`}
+            />
+          </div>
+
+          <div className="min-w-0 flex-1">
+
+            <div className="flex items-center gap-1.5">
+
+              <h3 className="truncate font-[Manrope] text-[15px] font-extrabold text-[#253E59]">
+                Dr. {name}
+              </h3>
+
+              {doctor.user
+                ?.isVerified && (
+                <BadgeCheck
+                  size={15}
+                  className="shrink-0 text-[#1717E8]"
+                />
+              )}
             </div>
 
-          </div>
+            <p className="mt-1 text-[10px] font-extrabold text-[#1717E8]">
+              {doctor.specialization ||
+                "Medical Professional"}
+            </p>
 
+            <p className="mt-1 text-[9px] font-medium text-[#8998A8]">
+              {doctor.qualification ||
+                "Qualification not provided"}
+            </p>
+          </div>
         </div>
 
+        {/* DETAILS */}
 
-        {/* Details */}
+        <div className="mt-5 space-y-2.5">
 
-        <div className="mt-5 space-y-3">
-
-          <DoctorInfo
-            icon={<GraduationIcon />}
-            text={
-              doctor.qualification ||
-              "Qualification not specified"
+          <DoctorInfoRow
+            icon={Building2}
+            value={
+              hospitalName ||
+              (doctor.practiceType ===
+              "Independent"
+                ? "Independent Practice"
+                : "Hospital Practice")
             }
           />
 
-          <DoctorInfo
-            icon={<BriefcaseIcon />}
-            text={`${doctor.experience || 0} years experience`}
-          />
-
-          <DoctorInfo
-            icon={<HospitalIcon />}
-            text={
-              hospital ||
-              "Independent practice"
-            }
-          />
-
-          {doctor.user?.city && (
-
-            <DoctorInfo
-              icon={<LocationIcon />}
-              text={doctor.user.city}
+          {(city ||
+            doctor.practiceType) && (
+            <DoctorInfoRow
+              icon={MapPin}
+              value={
+                city ||
+                doctor.practiceType
+              }
             />
-
           )}
 
+          <DoctorInfoRow
+            icon={Activity}
+            value={`${
+              doctor.experience ||
+              0
+            } years experience`}
+          />
         </div>
 
+        {/* FEES */}
 
-        {/* Bottom */}
+        <div className="mt-5 grid grid-cols-2 gap-3">
 
-        <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
+          <FeeBlock
+            icon={Stethoscope}
+            label="Physical"
+            value={formatFee(
+              doctor.consultationFee,
+            )}
+          />
 
-          <div>
+          <FeeBlock
+            icon={Video}
+            label="Virtual"
+            value={
+              doctor.virtualConsultationFee !==
+                undefined &&
+              doctor.virtualConsultationFee !==
+                null
+                ? formatFee(
+                    doctor.virtualConsultationFee,
+                  )
+                : "—"
+            }
+          />
+        </div>
 
-            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold">
-              Consultation
-            </p>
+        {/* AVAILABILITY */}
 
-            <p className="text-base font-black text-slate-900 mt-0.5">
-              Rs. {doctor.consultationFee ?? "—"}
-            </p>
+        <div
+          className={`mt-5 flex items-center justify-between rounded-[13px] px-3.5 py-3 ${
+            available
+              ? "bg-emerald-50"
+              : "bg-slate-50"
+          }`}
+        >
 
+          <div className="flex items-center gap-2">
+
+            {available ? (
+              <CheckCircle2
+                size={14}
+                className="text-emerald-600"
+              />
+            ) : (
+              <Clock3
+                size={14}
+                className="text-slate-500"
+              />
+            )}
+
+            <span
+              className={`text-[9px] font-extrabold ${
+                available
+                  ? "text-emerald-700"
+                  : "text-slate-600"
+              }`}
+            >
+              {available
+                ? "Available for appointments"
+                : "Currently unavailable"}
+            </span>
           </div>
 
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onBook();
-            }}
-            disabled={!available}
-            className="rounded-xl bg-[#1657CC] px-4 py-2.5 text-xs font-bold text-white transition hover:bg-[#0C3B90] disabled:bg-[#E8EEF7] disabled:text-[#9AA7BC]"
+          {doctor.availableDays
+            ?.length > 0 && (
+            <span className="text-[8px] font-bold text-[#8A98A8]">
+              {
+                doctor
+                  .availableDays
+                  .length
+              }{" "}
+              days/week
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ACTIONS */}
+
+      <div className="grid grid-cols-2 border-t border-[#EDF2F7]">
+
+        <button
+          type="button"
+          onClick={
+            onView
+          }
+          className="min-h-[48px] border-r border-[#EDF2F7] text-[9.5px] font-extrabold !text-[#536B83] transition hover:bg-[#F8FAFD] hover:!text-[#1717E8]"
+        >
+          View Details
+        </button>
+
+        <button
+          type="button"
+          onClick={
+            onBook
+          }
+          disabled={
+            !available
+          }
+          className={`min-h-[48px] text-[9.5px] font-extrabold transition ${
+            available
+              ? "bg-[#1717E8] !text-white hover:bg-[#1010C9]"
+              : "cursor-not-allowed bg-[#F1F3F6] text-[#A5AFBA]"
+          }`}
+        >
+          <span
+            className={
+              available
+                ? "!text-white"
+                : ""
+            }
           >
             {available
-              ? "Book appointment"
+              ? "Book Appointment"
               : "Unavailable"}
-          </button>
-
-        </div>
-
+          </span>
+        </button>
       </div>
-
-
-      {/* Availability */}
-
-      <div
-        className={`px-5 py-3 text-[10px] font-bold ${
-          available
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-slate-50 text-slate-400"
-        }`}
-      >
-        {available
-          ? "● AVAILABLE FOR CONSULTATION"
-          : "● CURRENTLY UNAVAILABLE"}
-      </div>
-
-    </div>
+    </article>
   );
 };
 
+/* =========================================================
+   DOCTOR MODAL
+========================================================= */
 
-// =========================================================
-// DETAIL MODAL
-// =========================================================
-
-const DoctorDetails = ({
+const DoctorModal = ({
   doctor,
   loading,
   onClose,
   onBook,
 }) => {
-
-  if (loading) {
-    return (
-      <Modal onClose={onClose}>
-        <div className="p-14 text-center">
-
-          <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mx-auto" />
-
-          <p className="text-sm text-slate-500 mt-4">
-            Loading doctor profile...
-          </p>
-
-        </div>
-      </Modal>
-    );
-  }
-
-  if (!doctor) {
-    return null;
-  }
-
   const name =
     doctor.user?.fullName ||
+    doctor.fullName ||
     "Doctor";
 
   const available =
-    doctor.isAvailable === true;
+    Boolean(
+      doctor.isAvailable,
+    );
 
   return (
-    <Modal onClose={onClose}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
 
-      <div className="max-h-[90vh] overflow-y-auto">
+      <button
+        type="button"
+        aria-label="Close doctor details"
+        onClick={onClose}
+        className="absolute inset-0 bg-[#10233F]/55 backdrop-blur-sm"
+      />
 
-        {/* Hero */}
+      <div className="relative max-h-[90vh] w-full max-w-[760px] overflow-y-auto rounded-[28px] bg-white shadow-[0_35px_100px_rgba(11,34,64,0.25)]">
 
-        <div className="bg-[#071f3d] text-white p-6 sm:p-8">
+        {/* HEADER */}
 
-          <div className="flex flex-col sm:flex-row gap-5">
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E9EEF4] bg-white px-5 py-5 sm:px-7">
 
-            {doctor.user?.profileImage ? (
+          <div>
 
-              <img
-                src={
-                  doctor.user.profileImage
-                }
-                alt={name}
-                className="w-24 h-24 rounded-3xl object-cover border-4 border-white/10"
-              />
+            <p className="text-[8.5px] font-extrabold uppercase tracking-[0.14em] text-[#1717E8]">
+              Doctor Profile
+            </p>
 
-            ) : (
-
-              <div className="w-24 h-24 rounded-3xl bg-white/10 flex items-center justify-center text-3xl font-black">
-                {getInitials(name)}
-              </div>
-
-            )}
-
-            <div className="flex-1">
-
-              <div className="flex items-center gap-2">
-
-                <span
-                  className={`w-2.5 h-2.5 rounded-full ${
-                    available
-                      ? "bg-emerald-400"
-                      : "bg-slate-400"
-                  }`}
-                />
-
-                <span className="text-xs font-bold text-slate-300">
-                  {available
-                    ? "Available"
-                    : "Currently unavailable"}
-                </span>
-
-              </div>
-
-              <h2 className="text-2xl sm:text-3xl font-black mt-2">
-                Dr. {name}
-              </h2>
-
-              <p className="text-blue-300 font-semibold mt-1">
-                {doctor.specialization}
-              </p>
-
-              <div className="flex flex-wrap gap-2 mt-4">
-
-                <Pill>
-                  {doctor.experience || 0} years experience
-                </Pill>
-
-                <Pill>
-                  {doctor.practiceType ||
-                    "Independent"}
-                </Pill>
-
-                {doctor.hospital?.name && (
-                  <Pill>
-                    {doctor.hospital.name}
-                  </Pill>
-                )}
-
-              </div>
-
-            </div>
-
+            <h2 className="mt-1 font-[Manrope] text-[20px] font-extrabold text-[#19324E]">
+              Healthcare Professional
+            </h2>
           </div>
 
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-9 w-9 place-items-center rounded-[11px] bg-[#F1F4F8] text-[#667B91] transition hover:bg-[#E8EDF3]"
+          >
+            <X size={17} />
+          </button>
         </div>
 
+        {loading && (
+          <div className="flex items-center gap-2 border-b border-[#EDF2F7] bg-[#F8FAFD] px-7 py-3">
+
+            <LoaderCircle
+              size={13}
+              className="animate-spin text-[#1717E8]"
+            />
+
+            <span className="text-[9px] font-semibold text-[#74869A]">
+              Loading latest doctor information...
+            </span>
+          </div>
+        )}
 
         <div className="p-5 sm:p-7">
 
-          {/* About */}
+          {/* PROFILE */}
 
-          <DetailBlock
-            title="About the doctor"
-          >
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
 
-            <p className="text-sm text-slate-600 leading-7">
-              {doctor.bio ||
-                "This doctor has not added a biography yet."}
-            </p>
+            {doctor.user
+              ?.profileImage ? (
+              <img
+                src={
+                  doctor.user
+                    .profileImage
+                }
+                alt={`Dr. ${name}`}
+                className="h-24 w-24 rounded-[24px] object-cover"
+              />
+            ) : (
+              <div className="grid h-24 w-24 shrink-0 place-items-center rounded-[24px] bg-[#EEF2FF] font-[Manrope] text-[22px] font-extrabold text-[#1717E8]">
+                {getInitials(
+                  name,
+                )}
+              </div>
+            )}
 
-          </DetailBlock>
+            <div className="min-w-0">
 
+              <div className="flex flex-wrap items-center gap-2">
 
-          {/* Professional */}
+                <h3 className="font-[Manrope] text-[24px] font-extrabold tracking-[-0.035em] text-[#1D3652]">
+                  Dr. {name}
+                </h3>
 
-          <DetailBlock
-            title="Professional information"
-          >
+                {doctor.user
+                  ?.isVerified && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF2FF] px-2.5 py-1 text-[8px] font-extrabold text-[#1717E8]">
 
-            <div className="grid sm:grid-cols-2 gap-3">
+                    <BadgeCheck
+                      size={11}
+                    />
 
-              <InfoBox
-                label="Qualification"
+                    Verified
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-1 text-[11px] font-extrabold text-[#1717E8]">
+                {doctor.specialization ||
+                  "Medical Professional"}
+              </p>
+
+              <p className="mt-1 text-[9.5px] text-[#7E8FA1]">
+                {doctor.qualification ||
+                  "Qualification not provided"}
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+
+                <Pill
+                  icon={Activity}
+                  text={`${doctor.experience || 0} years experience`}
+                />
+
+                <Pill
+                  icon={
+                    available
+                      ? CheckCircle2
+                      : Clock3
+                  }
+                  text={
+                    available
+                      ? "Available"
+                      : "Unavailable"
+                  }
+                  green={
+                    available
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* DETAILS */}
+
+          <section className="mt-7">
+
+            <SectionTitle>
+              Practice Information
+            </SectionTitle>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+
+              <DetailCard
+                icon={Hospital}
+                label="Practice"
                 value={
-                  doctor.qualification ||
-                  "—"
+                  doctor.hospital
+                    ?.name ||
+                  doctor.practiceType ||
+                  "Independent"
                 }
               />
 
-              <InfoBox
-                label="Experience"
-                value={`${doctor.experience || 0} years`}
+              <DetailCard
+                icon={MapPin}
+                label="Location"
+                value={
+                  doctor.hospital
+                    ?.city ||
+                  doctor.hospital
+                    ?.address ||
+                  "Not provided"
+                }
               />
 
-              <InfoBox
-                label="Consultation fee"
-                value={`Rs. ${
-                  doctor.consultationFee ??
-                  "—"
-                }`}
+              <DetailCard
+                icon={CircleDollarSign}
+                label="Physical consultation"
+                value={formatFee(
+                  doctor.consultationFee,
+                )}
               />
 
-              <InfoBox
+              <DetailCard
+                icon={Video}
                 label="Virtual consultation"
-                value={`Rs. ${
-                  doctor.virtualConsultationFee ??
-                  "—"
-                }`}
+                value={
+                  doctor.virtualConsultationFee !==
+                    undefined &&
+                  doctor.virtualConsultationFee !==
+                    null
+                    ? formatFee(
+                        doctor.virtualConsultationFee,
+                      )
+                    : "Not available"
+                }
               />
-
             </div>
+          </section>
 
-          </DetailBlock>
+          {/* DAYS */}
 
+          <section className="mt-7">
 
-          {/* Availability */}
+            <SectionTitle>
+              Availability
+            </SectionTitle>
 
-          <DetailBlock
-            title="Availability"
-          >
+            {doctor.availableDays
+              ?.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
 
-            <div className="flex flex-wrap gap-2">
-
-              {Array.isArray(
-                doctor.availableDays
-              ) &&
-              doctor.availableDays.length > 0 ? (
-
-                doctor.availableDays.map(
+                {doctor.availableDays.map(
                   (day) => (
-
                     <span
                       key={day}
-                      className="px-3 py-2 rounded-xl bg-blue-50 text-blue-700 text-xs font-bold"
+                      className="rounded-[9px] border border-[#DDE5EF] bg-[#F8FAFD] px-3 py-2 text-[8.5px] font-extrabold text-[#526A82]"
                     >
                       {day}
                     </span>
-
-                  )
-                )
-
-              ) : (
-
-                <span className="text-sm text-slate-400">
-                  Availability not specified
-                </span>
-
-              )}
-
-            </div>
-
-            {doctor.availableTime && (
-
-              <div className="mt-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
-
-                <p className="text-[10px] uppercase tracking-wide font-bold text-slate-400">
-                  Consultation hours
-                </p>
-
-                <p className="text-sm font-bold text-slate-800 mt-1">
-                  {doctor.availableTime.start ||
-                    "—"}{" "}
-                  —{" "}
-                  {doctor.availableTime.end ||
-                    "—"}
-                </p>
-
+                  ),
+                )}
               </div>
-
+            ) : (
+              <p className="mt-3 text-[9.5px] text-[#8A98A8]">
+                Available days have not been specified.
+              </p>
             )}
 
-          </DetailBlock>
+            {(doctor.availableTime
+              ?.start ||
+              doctor.availableTime
+                ?.end) && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-[10px] bg-[#EEF2FF] px-3 py-2 text-[9px] font-bold text-[#1717E8]">
 
+                <Clock3
+                  size={13}
+                />
 
-          {/* Hospital */}
-
-          {doctor.hospital && (
-
-            <DetailBlock
-              title="Hospital / Practice"
-            >
-
-              <div className="rounded-2xl bg-slate-50 border border-slate-100 p-4">
-
-                <h3 className="font-bold text-slate-900">
-                  {doctor.hospital.name}
-                </h3>
-
-                <p className="text-sm text-slate-500 mt-1">
-                  {doctor.hospital.address ||
-                    "Address not available"}
-                </p>
-
-                <p className="text-sm text-slate-500 mt-1">
-                  {doctor.hospital.city ||
-                    ""}
-                </p>
-
+                {doctor
+                  .availableTime
+                  ?.start ||
+                  "—"}{" "}
+                –{" "}
+                {doctor
+                  .availableTime
+                  ?.end ||
+                  "—"}
               </div>
+            )}
+          </section>
 
-            </DetailBlock>
+          {/* BIO */}
 
+          {doctor.bio && (
+            <section className="mt-7">
+
+              <SectionTitle>
+                About Doctor
+              </SectionTitle>
+
+              <p className="mt-3 whitespace-pre-wrap text-[10px] leading-6 text-[#657A90]">
+                {doctor.bio}
+              </p>
+            </section>
           )}
 
+          {/* ACTION */}
 
-          {/* Actions */}
-
-          <div className="flex flex-col sm:flex-row gap-3 mt-7 pt-5 border-t border-slate-100">
+          <div className="mt-8 flex flex-col-reverse gap-3 border-t border-[#EDF2F7] pt-5 sm:flex-row sm:justify-end">
 
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-50"
+              className="min-h-[45px] rounded-[12px] border border-[#DDE5EE] bg-white px-5 text-[9.5px] font-extrabold text-[#61758B] transition hover:bg-[#F8FAFD]"
             >
               Close
             </button>
 
             <button
               type="button"
-              disabled={!available}
-              onClick={() =>
-                onBook(doctor._id)
+              onClick={
+                onBook
               }
-              className="flex-1 rounded-xl bg-[#1657CC] py-3 text-sm font-bold text-white transition hover:bg-[#0C3B90] disabled:bg-[#E8EEF7] disabled:text-[#9AA7BC]"
+              disabled={
+                !available
+              }
+              className={`inline-flex min-h-[45px] items-center justify-center gap-2 rounded-[12px] px-5 text-[9.5px] font-extrabold transition ${
+                available
+                  ? "bg-[#1717E8] !text-white shadow-[0_10px_25px_rgba(23,23,232,0.17)] hover:bg-[#1010C9]"
+                  : "cursor-not-allowed bg-[#EFF2F5] text-[#9CA8B4]"
+              }`}
             >
-              {available
-                ? "Book appointment"
-                : "Doctor unavailable"}
+
+              <CalendarDays
+                size={14}
+                className={
+                  available
+                    ? "text-white"
+                    : ""
+                }
+              />
+
+              <span
+                className={
+                  available
+                    ? "!text-white"
+                    : ""
+                }
+              >
+                {available
+                  ? "Book Appointment"
+                  : "Doctor Unavailable"}
+              </span>
             </button>
-
           </div>
-
         </div>
-
       </div>
-
-    </Modal>
+    </div>
   );
 };
 
+/* =========================================================
+   FILTER SELECT
+========================================================= */
 
-// =========================================================
-// MODAL
-// =========================================================
-
-const Modal = ({
-  children,
-  onClose,
+const FilterSelect = ({
+  label,
+  value,
+  onChange,
+  options,
+  placeholder,
 }) => (
+  <div>
 
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <label className="mb-2 block text-[9px] font-extrabold uppercase tracking-[0.08em] text-[#74869A]">
+      {label}
+    </label>
 
-    <div
-      className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm"
-      onClick={onClose}
-    />
+    <div className="relative">
 
-    <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl overflow-hidden">
-      {children}
+      <select
+        value={value}
+        onChange={(event) =>
+          onChange(
+            event.target.value,
+          )
+        }
+        className="h-[44px] w-full appearance-none rounded-[12px] border border-[#DBE5EF] bg-[#FAFCFE] px-3 pr-9 text-[11px] text-[#334B65] outline-none focus:border-[#1717E8]"
+      >
+
+        <option value="">
+          {placeholder}
+        </option>
+
+        {options.map(
+          (option) => {
+            const item =
+              typeof option ===
+              "string"
+                ? {
+                    value:
+                      option,
+                    label:
+                      option,
+                  }
+                : option;
+
+            return (
+              <option
+                key={
+                  item.value
+                }
+                value={
+                  item.value
+                }
+              >
+                {
+                  item.label
+                }
+              </option>
+            );
+          },
+        )}
+      </select>
+
+      <ChevronDown
+        size={14}
+        className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#8595A5]"
+      />
     </div>
-
   </div>
 );
 
+/* =========================================================
+   HERO METRIC
+========================================================= */
 
-// =========================================================
-// DETAIL BLOCK
-// =========================================================
-
-const DetailBlock = ({
-  title,
-  children,
-}) => (
-
-  <section className="mt-6 first:mt-0">
-
-    <h3 className="text-xs uppercase tracking-[0.15em] font-black text-slate-400 mb-3">
-      {title}
-    </h3>
-
-    {children}
-
-  </section>
-);
-
-
-// =========================================================
-// INFO BOX
-// =========================================================
-
-const InfoBox = ({
-  label,
+const HeroMetric = ({
   value,
+  label,
+  icon: Icon,
+  green = false,
 }) => (
+  <div className="rounded-[18px] border border-[#E0E6F2] bg-white/80 p-4 shadow-[0_10px_28px_rgba(25,49,78,0.05)] backdrop-blur">
 
-  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
+    <div
+      className={`grid h-9 w-9 place-items-center rounded-[11px] ${
+        green
+          ? "bg-emerald-50 text-emerald-600"
+          : "bg-[#EEF2FF] text-[#1717E8]"
+      }`}
+    >
+      <Icon size={17} />
+    </div>
 
-    <p className="text-[10px] uppercase tracking-wide font-bold text-slate-400">
-      {label}
-    </p>
-
-    <p className="text-sm font-bold text-slate-800 mt-1">
+    <p className="mt-4 font-[Manrope] text-[23px] font-extrabold text-[#19324E]">
       {value}
     </p>
 
+    <p className="mt-1 text-[8.5px] font-bold text-[#8795A5]">
+      {label}
+    </p>
   </div>
 );
 
+/* =========================================================
+   DOCTOR INFO ROW
+========================================================= */
 
-// =========================================================
-// PILL
-// =========================================================
+const DoctorInfoRow = ({
+  icon: Icon,
+  value,
+}) => (
+  <div className="flex items-center gap-2.5">
+
+    <Icon
+      size={14}
+      className="shrink-0 text-[#8191A3]"
+    />
+
+    <p className="truncate text-[9.5px] font-semibold text-[#60758B]">
+      {value}
+    </p>
+  </div>
+);
+
+/* =========================================================
+   FEE BLOCK
+========================================================= */
+
+const FeeBlock = ({
+  icon: Icon,
+  label,
+  value,
+}) => (
+  <div className="rounded-[13px] border border-[#E4EAF1] bg-[#FAFCFE] p-3">
+
+    <div className="flex items-center gap-2">
+
+      <Icon
+        size={13}
+        className="text-[#1717E8]"
+      />
+
+      <span className="text-[8px] font-bold uppercase tracking-[0.07em] text-[#8C9AAA]">
+        {label}
+      </span>
+    </div>
+
+    <p className="mt-2 text-[10.5px] font-extrabold text-[#324A63]">
+      {value}
+    </p>
+  </div>
+);
+
+/* =========================================================
+   PILL
+========================================================= */
 
 const Pill = ({
-  children,
+  icon: Icon,
+  text,
+  green = false,
 }) => (
+  <span
+    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[8px] font-extrabold ${
+      green
+        ? "bg-emerald-50 text-emerald-700"
+        : "bg-[#F1F4F8] text-[#65798F]"
+    }`}
+  >
+    <Icon size={11} />
 
-  <span className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-[10px] font-bold">
-    {children}
+    {text}
   </span>
 );
 
+/* =========================================================
+   SECTION TITLE
+========================================================= */
 
-// =========================================================
-// FILTER SELECT
-// =========================================================
-
-const FilterSelect = ({
-  name,
-  value,
-  onChange,
-  placeholder,
-  options,
+const SectionTitle = ({
+  children,
 }) => (
-
-  <select
-    name={name}
-    value={value}
-    onChange={onChange}
-    className="h-11 w-full rounded-xl border border-[#DCE6F6] bg-[#F8FAFD] px-3 text-sm font-medium text-[#0A1F3D] outline-none transition focus:border-[#1657CC] focus:bg-white focus:ring-4 focus:ring-[#1657CC]/10"
-  >
-
-    <option value="">
-      {placeholder}
-    </option>
-
-    {options.map(
-      (option) => (
-        <option
-          key={option}
-          value={option}
-        >
-          {option}
-        </option>
-      )
-    )}
-
-  </select>
+  <h4 className="text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#8997A7]">
+    {children}
+  </h4>
 );
 
+/* =========================================================
+   DETAIL CARD
+========================================================= */
 
-// =========================================================
-// MINI STAT
-// =========================================================
-
-const MiniStat = ({
-  value,
+const DetailCard = ({
+  icon: Icon,
   label,
+  value,
 }) => (
+  <div className="flex items-start gap-3 rounded-[14px] border border-[#E3E9F0] bg-[#FAFCFE] p-4">
 
-  <div className="px-3 sm:px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 min-w-[75px]">
-
-    <p className="text-lg font-black text-slate-900">
-      {value}
-    </p>
-
-    <p className="text-[9px] uppercase tracking-wide font-bold text-slate-400">
-      {label}
-    </p>
-
-  </div>
-);
-
-
-// =========================================================
-// DOCTOR INFO
-// =========================================================
-
-const DoctorInfo = ({
-  icon,
-  text,
-}) => (
-
-  <div className="flex items-center gap-2.5 text-xs text-slate-500">
-
-    <span className="w-5 text-slate-400 shrink-0">
-      {icon}
-    </span>
-
-    <span className="truncate">
-      {text}
-    </span>
-
-  </div>
-);
-
-
-// =========================================================
-// EMPTY
-// =========================================================
-
-const EmptyDoctors = ({
-  onReset,
-}) => (
-
-  <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
-
-    <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
-
-      <DoctorIcon size={28} />
-
+    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] bg-[#EEF2FF] text-[#1717E8]">
+      <Icon size={16} />
     </div>
 
-    <h3 className="text-xl font-black text-slate-900 mt-5">
-      No doctors found
-    </h3>
+    <div className="min-w-0">
 
-    <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
-      Try another specialization, city or
-      availability filter.
-    </p>
+      <p className="text-[8px] font-bold uppercase tracking-[0.08em] text-[#929FAD]">
+        {label}
+      </p>
 
-    <button
-      type="button"
-      onClick={onReset}
-      className="mt-5 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold"
-    >
-      Clear filters
-    </button>
-
+      <p className="mt-1 break-words text-[9.5px] font-extrabold text-[#3D546D]">
+        {value}
+      </p>
+    </div>
   </div>
 );
 
-
-// =========================================================
-// SKELETON
-// =========================================================
+/* =========================================================
+   SKELETON
+========================================================= */
 
 const DoctorSkeleton = () => (
-
-  <div className="bg-white border border-slate-200 rounded-3xl p-5 animate-pulse">
+  <div className="animate-pulse rounded-[22px] border border-[#E2E8EF] bg-white p-6">
 
     <div className="flex gap-4">
 
-      <div className="w-16 h-16 rounded-2xl bg-slate-200" />
+      <div className="h-16 w-16 rounded-[18px] bg-[#EEF1F5]" />
 
       <div className="flex-1">
 
-        <div className="h-4 bg-slate-200 rounded w-2/3" />
+        <div className="h-4 w-3/4 rounded bg-[#EEF1F5]" />
 
-        <div className="h-3 bg-slate-100 rounded w-1/2 mt-3" />
+        <div className="mt-3 h-3 w-1/2 rounded bg-[#F1F3F6]" />
 
+        <div className="mt-2 h-3 w-2/3 rounded bg-[#F1F3F6]" />
       </div>
-
     </div>
 
-    <div className="space-y-3 mt-6">
+    <div className="mt-6 space-y-3">
 
-      <div className="h-3 bg-slate-100 rounded" />
-      <div className="h-3 bg-slate-100 rounded" />
-      <div className="h-3 bg-slate-100 rounded" />
+      <div className="h-3 w-full rounded bg-[#F1F3F6]" />
 
+      <div className="h-3 w-4/5 rounded bg-[#F1F3F6]" />
+
+      <div className="h-3 w-3/5 rounded bg-[#F1F3F6]" />
     </div>
 
-    <div className="h-10 bg-slate-100 rounded-xl mt-6" />
+    <div className="mt-6 grid grid-cols-2 gap-3">
 
+      <div className="h-16 rounded-[13px] bg-[#F3F5F8]" />
+
+      <div className="h-16 rounded-[13px] bg-[#F3F5F8]" />
+    </div>
   </div>
 );
-
-
-// =========================================================
-// ICONS
-// =========================================================
-
-const SearchIcon = () => (
-
-  <svg
-    className="absolute left-4 top-1/2 -translate-y-1/2 text-[#8C99B8]"
-    width="18"
-    height="18"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
-    <circle cx="11" cy="11" r="7" />
-    <path d="m20 20-4-4" />
-  </svg>
-
-);
-
-
-const GraduationIcon = () => (
-
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
-    <path d="M3 10 12 5l9 5-9 5-9-5Z" />
-    <path d="M7 12v5c3 2 7 2 10 0v-5" />
-  </svg>
-
-);
-
-
-const BriefcaseIcon = () => (
-
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
-    <rect x="3" y="7" width="18" height="13" rx="2" />
-    <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-  </svg>
-
-);
-
-
-const HospitalIcon = () => (
-
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
-    <path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16" />
-    <path d="M8 8h8M12 5v6M9 21v-4h6v4" />
-  </svg>
-
-);
-
-
-const LocationIcon = () => (
-
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-  >
-    <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
-    <circle cx="12" cy="10" r="2.5" />
-  </svg>
-
-);
-
-
-const DoctorIcon = ({
-  size = 22,
-}) => (
-
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-  >
-    <circle cx="12" cy="7" r="4" />
-    <path d="M4 21c.8-4.2 3.5-6 8-6s7.2 1.8 8 6" />
-    <path d="M19 8v6M16 11h6" />
-  </svg>
-
-);
-
-
-// =========================================================
-// HELPERS
-// =========================================================
-
-const getInitials = (name) => {
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(
-      (part) =>
-        part[0]?.toUpperCase()
-    )
-    .join("");
-};
 
 export default Doctor;
