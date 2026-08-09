@@ -1,16 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+
+import {
+  Activity,
+  ArrowUpRight,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  Droplets,
+  HeartPulse,
+  Hospital,
+  LoaderCircle,
+  Sparkles,
+  Stethoscope,
+  UserRound,
+  UsersRound,
+  Video,
+} from "lucide-react";
+
 import StatCard from "./StatCard";
 import QuickAction from "./QuickAction";
-import { apiRequest, formatDate } from "../../utils/api";
+
+import {
+  apiRequest,
+  formatDate,
+} from "../../utils/api";
 
 const STATUS_STYLES = {
   Pending: "bg-amber-50 text-amber-700",
   Confirmed: "bg-emerald-50 text-emerald-700",
   Completed: "bg-blue-50 text-blue-700",
-  InProgress: "bg-blue-50 text-blue-700",
-  Waiting: "bg-amber-50 text-amber-700",
-  Scheduled: "bg-slate-100 text-slate-600",
+  Cancelled: "bg-slate-100 text-slate-600",
+  Rejected: "bg-rose-50 text-rose-700",
 };
 
 const DoctorDashboard = ({ user }) => {
@@ -21,12 +43,17 @@ const DoctorDashboard = ({ user }) => {
   useEffect(() => {
     const loadOverview = async () => {
       try {
-        const data = await apiRequest("/dashboard/overview");
-        setOverview(data?.overview || null);
+        const data = await apiRequest(
+          "/dashboard/overview",
+        );
+
+        setOverview(
+          data?.overview || null,
+        );
       } catch (err) {
         setError(
           err?.message ||
-            "Unable to load dashboard data."
+            "Unable to load doctor dashboard.",
         );
       } finally {
         setLoading(false);
@@ -36,31 +63,44 @@ const DoctorDashboard = ({ user }) => {
     loadOverview();
   }, []);
 
-  const stats = overview?.stats;
+  const stats = overview?.stats || {};
   const profile = overview?.user || user;
   const doctorProfile = overview?.doctorProfile;
+
   const todaySchedule =
     overview?.todaySchedule || [];
+
   const weeklyCounts =
     overview?.weeklyCounts || [];
 
-  const maxWeeklyCount = Math.max(
-    ...weeklyCounts.map(
-      (item) => item.count
-    ),
-    1
+  const maxWeeklyCount = useMemo(
+    () =>
+      Math.max(
+        ...weeklyCounts.map(
+          (item) =>
+            Number(item.count || 0),
+        ),
+        1,
+      ),
+    [weeklyCounts],
   );
 
   if (loading) {
     return (
-      <div className="min-h-[400px] flex items-center justify-center">
+      <div className="flex min-h-[520px] items-center justify-center">
+
         <div className="text-center">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 text-white mx-auto flex items-center justify-center font-black animate-pulse">
-            S
+
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-[17px] bg-[#1717E8] text-white shadow-[0_14px_30px_rgba(23,23,232,0.22)]">
+
+            <LoaderCircle
+              size={24}
+              className="animate-spin"
+            />
           </div>
 
-          <p className="text-sm font-semibold text-slate-700 mt-3">
-            Loading dashboard...
+          <p className="mt-4 text-[12px] font-bold text-[#526A82]">
+            Loading doctor workspace...
           </p>
         </div>
       </div>
@@ -68,384 +108,617 @@ const DoctorDashboard = ({ user }) => {
   }
 
   return (
-    <div className="w-full">
+    <div className="mx-auto w-full max-w-[1500px] space-y-6">
+
       {error && (
-        <div className="mb-6 rounded-xl bg-red-50 border border-red-200 px-5 py-4 text-sm text-red-700">
+        <div className="rounded-[16px] border border-red-200 bg-red-50 px-5 py-4 text-[11px] font-semibold text-red-700">
           {error}
         </div>
       )}
 
       {!doctorProfile && (
-        <div className="mb-6 rounded-xl bg-amber-50 border border-amber-200 px-5 py-4 text-sm text-amber-800">
-          Doctor profile not found. Complete your
-          doctor registration to see full dashboard
-          data.
+        <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-5 py-4 text-[11px] font-semibold text-amber-800">
+          Doctor profile not found. Complete your doctor registration to see full dashboard data.
         </div>
       )}
 
-      {/* Availability */}
+      {/* HERO */}
 
-      <section className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <p className="text-sm text-slate-500">
+      <section className="relative overflow-hidden rounded-[26px] bg-[radial-gradient(circle_at_85%_25%,rgba(77,137,255,0.24),transparent_28%),linear-gradient(135deg,#0C2B50_0%,#164B87_55%,#3156E7_130%)] p-6 text-white shadow-[0_24px_55px_rgba(14,38,77,0.15)] sm:p-8">
+
+        <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border-[45px] border-white/[0.04]" />
+
+        <div className="relative flex flex-col justify-between gap-8 xl:flex-row xl:items-center">
+
+          <div className="max-w-[700px]">
+
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-2">
+
+              <Stethoscope
+                size={14}
+                className="text-cyan-200"
+              />
+
+              <span className="!text-white text-[9px] font-extrabold uppercase tracking-[0.14em]">
+                Doctor Workspace
+              </span>
+            </div>
+
+            <h2 className="mt-5 font-[Manrope] text-[28px] font-extrabold tracking-[-0.045em] !text-white sm:text-[36px]">
+              Welcome, Dr.{" "}
+              {profile?.fullName || "Doctor"}
+            </h2>
+
+            <p className="mt-3 max-w-[620px] text-[12px] leading-6 !text-blue-100">
+              Manage today's consultations, monitor appointment activity and access SAHARA healthcare tools from one workspace.
+            </p>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+
+              <div className="inline-flex items-center gap-2 rounded-[11px] bg-white/10 px-3 py-2">
+
+                <Activity
+                  size={13}
+                  className={
+                    stats.isAvailable
+                      ? "text-emerald-300"
+                      : "text-slate-300"
+                  }
+                />
+
+                <span className="!text-white text-[9.5px] font-bold">
+                  {stats.isAvailable
+                    ? "Accepting patients"
+                    : "Currently unavailable"}
+                </span>
+              </div>
+
+              {doctorProfile?.specialization && (
+                <div className="inline-flex items-center gap-2 rounded-[11px] bg-white/10 px-3 py-2">
+
+                  <Stethoscope
+                    size={13}
+                    className="text-cyan-200"
+                  />
+
+                  <span className="!text-white text-[9.5px] font-bold">
+                    {doctorProfile.specialization}
+                  </span>
+                </div>
+              )}
+
+              {doctorProfile?.hospital?.name && (
+                <div className="inline-flex items-center gap-2 rounded-[11px] bg-white/10 px-3 py-2">
+
+                  <Hospital
+                    size={13}
+                    className="text-blue-200"
+                  />
+
+                  <span className="!text-white text-[9.5px] font-bold">
+                    {doctorProfile.hospital.name}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+
+              <Link
+                to="/appointment"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] bg-white px-4 text-[10px] font-extrabold shadow-sm transition hover:bg-[#F4F7FF]"
+              >
+                <CalendarDays
+                  size={15}
+                  className="text-[#1717E8]"
+                />
+
+                <span className="!text-[#10233F]">
+                  View Appointments
+                </span>
+              </Link>
+
+              <Link
+                to="/ai-bot"
+                className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-white/20 bg-white/10 px-4 text-[10px] font-extrabold transition hover:bg-white/15"
+              >
+                <Sparkles
+                  size={15}
+                  className="text-white"
+                />
+
+                <span className="!text-white">
+                  Ask SAHARA AI
+                </span>
+              </Link>
+            </div>
+          </div>
+
+          <div className="min-w-[250px] rounded-[19px] border border-white/15 bg-white/[0.10] p-5 backdrop-blur">
+
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] !text-blue-100">
               Availability Status
             </p>
 
-            <p className="text-xl font-bold text-slate-900 mt-1">
-              {stats?.isAvailable
-                ? "Accepting patients"
-                : "Currently unavailable"}
-            </p>
+            <div className="mt-4 flex items-center justify-between gap-4">
 
-            {doctorProfile?.specialization && (
-              <p className="text-sm text-slate-500 mt-1">
-                {doctorProfile.specialization}
-              </p>
-            )}
+              <div>
+
+                <p className="font-[Manrope] text-[20px] font-extrabold !text-white">
+                  {stats.isAvailable
+                    ? "Available"
+                    : "Unavailable"}
+                </p>
+
+                <p className="mt-1 text-[9px] !text-blue-100">
+                  Appointment visibility
+                </p>
+              </div>
+
+              <div
+                className={`grid h-12 w-12 place-items-center rounded-[14px] ${
+                  stats.isAvailable
+                    ? "bg-emerald-400/15 text-emerald-300"
+                    : "bg-white/10 text-slate-300"
+                }`}
+              >
+                {stats.isAvailable ? (
+                  <CheckCircle2 size={22} />
+                ) : (
+                  <Clock3 size={22} />
+                )}
+              </div>
+            </div>
           </div>
-
-          <span
-            className={`inline-flex self-start px-4 py-2 rounded-full text-xs font-semibold ${
-              stats?.isAvailable
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            <span
-              className={`w-2 h-2 rounded-full mr-2 ${
-                stats?.isAvailable
-                  ? "bg-emerald-500"
-                  : "bg-slate-400"
-              }`}
-            />
-
-            {stats?.isAvailable
-              ? "Available"
-              : "Unavailable"}
-          </span>
         </div>
       </section>
 
-      {/* Statistics */}
+      {/* STATS */}
 
-      <section className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
         <StatCard
-          icon="👥"
+          icon={UsersRound}
           label="Patients Today"
           value={String(
-            stats?.patientsToday ?? 0
+            stats.patientsToday || 0,
           )}
-          trend={`${stats?.pendingAppointments ?? 0} pending`}
-        />
-
-        <StatCard
-          icon="📅"
-          label="This Week"
-          value={String(
-            stats?.appointmentsThisWeek ?? 0
-          )}
+          trend={`${stats.pendingAppointments || 0} pending`}
           accent="blue"
+          helper="Today's active schedule"
         />
 
         <StatCard
-          icon="💻"
+          icon={CalendarDays}
+          label="Appointments This Week"
+          value={String(
+            stats.appointmentsThisWeek || 0,
+          )}
+          accent="cyan"
+          helper="Weekly consultation load"
+        />
+
+        <StatCard
+          icon={Video}
           label="Virtual Fee"
           value={`Rs. ${
-            stats?.virtualConsultationFee ?? 0
+            stats.virtualConsultationFee || 0
           }`}
-          accent="amber"
+          accent="violet"
+          helper="Virtual consultation"
         />
 
         <StatCard
-          icon="💰"
+          icon={DollarSign}
           label="Physical Fee"
           value={`Rs. ${
-            stats?.consultationFee ?? 0
+            stats.consultationFee || 0
           }`}
-          accent="violet"
+          accent="amber"
+          helper="Physical consultation"
         />
       </section>
 
-      {/* Schedule + Actions */}
+      {/* SCHEDULE + ACTIONS */}
 
-      <div className="grid lg:grid-cols-3 gap-6 mb-6">
-        <section className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
+
+        <section className="overflow-hidden rounded-[22px] border border-[#DFE8F1] bg-white shadow-[0_12px_34px_rgba(23,47,78,0.045)]">
+
+          <div className="flex items-center justify-between border-b border-[#EDF2F7] px-5 py-5 sm:px-6">
+
             <div>
-              <h2 className="font-bold text-slate-900">
-                Today's Schedule
-              </h2>
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
+                Today's Workflow
+              </p>
 
-              <p className="text-xs text-slate-400 mt-1">
-                Your upcoming patient visits
+              <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
+                Today's Schedule
+              </h3>
+
+              <p className="mt-1 text-[9.5px] text-[#8998A8]">
+                Your upcoming patient consultations.
               </p>
             </div>
 
             <Link
               to="/appointment"
-              className="text-sm text-blue-600 font-semibold hover:text-blue-700"
+              className="inline-flex items-center gap-1.5 text-[9.5px] font-extrabold !text-[#1717E8]"
             >
-              View all
+              <span className="!text-[#1717E8]">
+                View all
+              </span>
+
+              <ArrowUpRight
+                size={13}
+                className="text-[#1717E8]"
+              />
             </Link>
           </div>
 
           {todaySchedule.length === 0 ? (
             <div className="px-6 py-14 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 mx-auto flex items-center justify-center text-xl">
-                📅
+
+              <div className="mx-auto grid h-16 w-16 place-items-center rounded-[19px] bg-[#EEF2FF] text-[#1717E8]">
+                <CalendarDays size={25} />
               </div>
 
-              <p className="text-sm font-bold text-slate-800 mt-4">
+              <p className="mt-4 text-[12px] font-extrabold text-[#304861]">
                 No appointments today
               </p>
 
-              <p className="text-xs text-slate-400 mt-1">
-                Your schedule is clear for today.
+              <p className="mt-1 text-[9.5px] text-[#8998A8]">
+                Your schedule is currently clear.
               </p>
             </div>
           ) : (
-            <div className="divide-y divide-slate-100">
-              {todaySchedule.map((item) => (
-                <div
-                  key={item._id}
-                  className="px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-semibold text-sm">
-                      {getInitials(
-                        item.patient?.fullName ||
-                          "Patient"
-                      )}
-                    </div>
+            <div className="divide-y divide-[#EDF2F7]">
 
-                    <div>
-                      <p className="font-semibold text-slate-900">
-                        {item.patient?.fullName ||
-                          "Patient"}
-                      </p>
-
-                      <p className="text-sm text-slate-500">
-                        {formatDate(
-                          item.appointmentDate,
-                          true
-                        )}{" "}
-                        •{" "}
-                        {item.appointmentType}
-                      </p>
-                    </div>
-                  </div>
-
-                  <span
-                    className={`self-start sm:self-center text-xs font-semibold px-3 py-1.5 rounded-full ${
-                      STATUS_STYLES[item.status] ||
-                      "bg-slate-100 text-slate-600"
-                    }`}
+              {todaySchedule.map(
+                (item) => (
+                  <div
+                    key={item._id}
+                    className="flex flex-col gap-4 px-5 py-4 transition hover:bg-[#FAFCFF] sm:flex-row sm:items-center sm:justify-between sm:px-6"
                   >
-                    {item.status}
-                  </span>
-                </div>
-              ))}
+
+                    <div className="flex min-w-0 items-center gap-3">
+
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-[#EEF2FF] text-[10px] font-extrabold text-[#1717E8]">
+                        {getInitials(
+                          item.patient?.fullName ||
+                            "Patient",
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+
+                        <p className="truncate text-[11.5px] font-extrabold text-[#2B425C]">
+                          {item.patient?.fullName ||
+                            "Patient"}
+                        </p>
+
+                        <p className="mt-1 text-[9px] text-[#8998A8]">
+                          {formatDate(
+                            item.appointmentDate,
+                            true,
+                          )}{" "}
+                          •{" "}
+                          {item.appointmentType}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`inline-flex self-start rounded-full px-3 py-1.5 text-[8.5px] font-extrabold sm:self-center ${
+                        STATUS_STYLES[item.status] ||
+                        "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {item.status}
+                    </span>
+                  </div>
+                ),
+              )}
             </div>
           )}
         </section>
 
-        <section className="space-y-3">
-          <h2 className="font-bold text-slate-900 px-1">
-            Quick Actions
-          </h2>
+        {/* QUICK ACTIONS */}
 
-          <QuickAction
-            icon="📋"
-            title="View Appointments"
-            description="Manage patient appointments"
-            to="/appointment"
-            variant="primary"
-          />
+        <section>
 
-          <QuickAction
-            icon="🩸"
-            title="Blood Donors"
-            description="Find available blood donors"
-            to="/blood-donor"
-          />
+          <div className="mb-4">
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
+              Shortcuts
+            </p>
 
-          <QuickAction
-            icon="🚨"
-            title="Blood Requests"
-            description="View active blood requests"
-            to="/blood-request"
-          />
+            <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
+              Quick Actions
+            </h3>
+          </div>
 
-          <QuickAction
-            icon="✦"
-            title="AI Assistant"
-            description="Healthcare support from Sahara AI"
-            to="/ai-bot"
-          />
+          <div className="space-y-3">
+
+            <QuickAction
+              icon={CalendarDays}
+              title="View Appointments"
+              description="Manage patient appointments"
+              to="/appointment"
+              variant="primary"
+            />
+
+            <QuickAction
+              icon={Droplets}
+              title="Blood Donors"
+              description="Find available blood donors"
+              to="/blood-donor"
+            />
+
+            <QuickAction
+              icon={HeartPulse}
+              title="Blood Requests"
+              description="Review active blood requests"
+              to="/bloodRequest"
+              variant="danger"
+            />
+
+            <QuickAction
+              icon={Sparkles}
+              title="SAHARA AI"
+              description="Open healthcare AI assistance"
+              to="/ai-bot"
+            />
+          </div>
         </section>
       </div>
 
-      {/* Weekly + Profile */}
+      {/* WEEKLY + PROFILE */}
 
-      <section className="grid lg:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
+      <div className="grid gap-6 lg:grid-cols-2">
+
+        <section className="rounded-[22px] border border-[#DFE8F1] bg-white p-5 shadow-[0_12px_34px_rgba(23,47,78,0.045)] sm:p-6">
+
+          <div className="flex items-start justify-between gap-4">
+
             <div>
-              <h3 className="font-bold text-slate-900">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
+                Appointment Activity
+              </p>
+
+              <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
                 Weekly Overview
               </h3>
 
-              <p className="text-xs text-slate-400 mt-1">
-                Appointment activity this week
+              <p className="mt-1 text-[9.5px] text-[#8998A8]">
+                Consultation activity across this week.
               </p>
             </div>
 
             <Link
               to="/appointment"
-              className="text-xs font-bold text-blue-600"
+              className="grid h-9 w-9 place-items-center rounded-[11px] bg-[#EEF2FF] text-[#1717E8]"
             >
-              View →
+              <ArrowUpRight size={15} />
             </Link>
           </div>
 
           {weeklyCounts.length === 0 ? (
-            <div className="h-28 flex items-center justify-center text-sm text-slate-400">
-              No weekly data available.
+            <div className="flex h-[190px] items-center justify-center text-[10px] font-semibold text-[#99A7B5]">
+              No weekly appointment data.
             </div>
           ) : (
-            <div className="flex items-end gap-3 h-32">
-              {weeklyCounts.map((item) => (
-                <div
-                  key={item.label}
-                  className="flex-1 h-full flex flex-col items-center justify-end gap-2"
-                >
-                  <div className="w-full h-24 flex items-end justify-center">
-                    <div
-                      className="w-full max-w-[44px] bg-blue-500 rounded-t-lg transition-all"
-                      style={{
-                        height: `${Math.max(
-                          (item.count /
+            <div className="mt-7 flex h-[190px] items-end gap-3">
+
+              {weeklyCounts.map(
+                (item) => {
+                  const height =
+                    Number(item.count || 0) > 0
+                      ? Math.max(
+                          (Number(item.count) /
                             maxWeeklyCount) *
                             100,
-                          item.count ? 12 : 4
-                        )}%`,
-                      }}
-                    />
-                  </div>
+                          12,
+                        )
+                      : 4;
 
-                  <span className="text-[10px] text-slate-400">
-                    {item.label}
-                  </span>
-                </div>
-              ))}
+                  return (
+                    <div
+                      key={item.label}
+                      className="flex h-full flex-1 flex-col items-center justify-end gap-2"
+                    >
+
+                      <span className="text-[8px] font-bold text-[#708298]">
+                        {item.count}
+                      </span>
+
+                      <div className="flex h-[135px] w-full items-end justify-center rounded-[10px] bg-[#F5F7FB] px-1">
+
+                        <div
+                          className="w-full max-w-[42px] rounded-t-[8px] bg-[linear-gradient(180deg,#4A6BFF,#1717E8)] transition-all duration-500"
+                          style={{
+                            height: `${height}%`,
+                          }}
+                        />
+                      </div>
+
+                      <span className="text-[8.5px] font-bold text-[#8C9AAA]">
+                        {item.label}
+                      </span>
+                    </div>
+                  );
+                },
+              )}
             </div>
           )}
-        </div>
+        </section>
 
-        <div className="rounded-2xl bg-[#071f3d] p-6 text-white relative overflow-hidden">
-          <div className="absolute -right-16 -top-16 w-48 h-48 rounded-full bg-blue-400/10" />
+        {/* PROFILE */}
+
+        <section className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#0C2B50,#164B87)] p-6 text-white shadow-[0_16px_38px_rgba(13,37,75,0.12)]">
+
+          <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full border-[34px] border-white/[0.04]" />
 
           <div className="relative">
-            <p className="text-blue-300 text-xs uppercase tracking-[0.16em] font-bold">
-              Doctor Profile
-            </p>
 
-            <div className="flex items-center gap-4 mt-4">
-              <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center text-lg font-black">
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] !text-cyan-200">
+                  Professional Profile
+                </p>
+
+                <h3 className="mt-1 font-[Manrope] text-[17px] font-extrabold !text-white">
+                  Doctor Profile
+                </h3>
+              </div>
+
+              <div className="grid h-10 w-10 place-items-center rounded-[12px] bg-white/10 text-cyan-200">
+                <Stethoscope size={19} />
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center gap-4">
+
+              <div className="grid h-14 w-14 place-items-center rounded-[16px] bg-white/10 text-[13px] font-extrabold !text-white ring-1 ring-white/10">
                 {getInitials(
-                  profile?.fullName
+                  profile?.fullName,
                 )}
               </div>
 
               <div>
-                <p className="text-xl font-black">
+                <p className="font-[Manrope] text-[19px] font-extrabold !text-white">
                   {profile?.fullName ||
                     "Doctor"}
                 </p>
 
-                <p className="text-blue-200 text-sm">
+                <p className="mt-1 text-[10px] font-semibold !text-blue-200">
                   {doctorProfile?.specialization ||
                     "Medical Professional"}
                 </p>
               </div>
             </div>
 
-            <p className="text-blue-100 text-sm mt-4">
-              {profile?.email}
-            </p>
+            <div className="mt-6 space-y-3">
 
-            {doctorProfile?.hospital?.name && (
-              <p className="text-blue-100 text-sm mt-1">
-                {doctorProfile.hospital.name}
-              </p>
-            )}
+              <ProfileRow
+                icon={UserRound}
+                label="Email"
+                value={
+                  profile?.email ||
+                  "Not provided"
+                }
+              />
 
-            <div className="flex items-center justify-between mt-6">
-              <p className="text-xs text-blue-200">
-                {profile?.isVerified
-                  ? "✓ Credentials verified"
-                  : "Verification pending"}
-              </p>
+              <ProfileRow
+                icon={Activity}
+                label="Experience"
+                value={
+                  doctorProfile?.experience !==
+                  undefined
+                    ? `${doctorProfile.experience} years`
+                    : "Not set"
+                }
+              />
+
+              <ProfileRow
+                icon={Hospital}
+                label="Practice"
+                value={
+                  doctorProfile?.hospital?.name ||
+                  doctorProfile?.practiceType ||
+                  "Independent"
+                }
+              />
+            </div>
+
+            <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
+
+              <div className="flex items-center gap-2">
+
+                <CheckCircle2
+                  size={14}
+                  className={
+                    profile?.isVerified
+                      ? "text-emerald-300"
+                      : "text-amber-300"
+                  }
+                />
+
+                <span className="text-[9px] font-semibold !text-blue-100">
+                  {profile?.isVerified
+                    ? "Credentials verified"
+                    : "Verification pending"}
+                </span>
+              </div>
 
               <Link
-                to="/profile"
-                className="px-4 py-2 rounded-xl bg-white text-slate-900 text-xs font-bold hover:bg-blue-50 transition"
+                to="/doctor"
+                className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-3 py-2 text-[8.5px] font-extrabold shadow-sm"
               >
-                Manage profile
+                <span className="!text-[#10233F]">
+                  Manage Profile
+                </span>
+
+                <ArrowUpRight
+                  size={12}
+                  className="text-[#1717E8]"
+                />
               </Link>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      {/* Doctor workspace */}
+      {/* WORKSPACE */}
 
       <section>
-        <div className="mb-4">
-          <h2 className="font-bold text-slate-900">
-            Doctor Workspace
-          </h2>
 
-          <p className="text-xs text-slate-400 mt-1">
-            Everything you need from your Sahara
-            workspace.
+        <div className="mb-4">
+
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
+            Tools
           </p>
+
+          <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
+            Doctor Workspace
+          </h3>
         </div>
 
-        <div className="grid sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+
           <WorkspaceCard
-            icon="📅"
+            icon={CalendarDays}
             title="Appointments"
             description="Manage patient appointments."
             to="/appointment"
           />
 
           <WorkspaceCard
-            icon="🩸"
+            icon={Droplets}
             title="Blood Donors"
-            description="Find available blood donors."
+            description="Find active blood donors."
             to="/blood-donor"
           />
 
           <WorkspaceCard
-            icon="🚨"
+            icon={HeartPulse}
             title="Blood Requests"
-            description="View active blood requests."
-            to="/blood-request"
+            description="Review active requests."
+            to="/bloodRequest"
+            danger
           />
 
           <WorkspaceCard
-            icon="👨‍⚕️"
+            icon={Stethoscope}
             title="My Profile"
-            description="Manage your professional profile."
-            to="/profile"
+            description="Review your doctor profile."
+            to="/doctor"
           />
 
           <WorkspaceCard
-            icon="✦"
-            title="Sahara AI"
-            description="AI-powered healthcare assistance."
+            icon={Sparkles}
+            title="SAHARA AI"
+            description="Healthcare AI assistance."
             to="/ai-bot"
             featured
           />
@@ -455,67 +728,115 @@ const DoctorDashboard = ({ user }) => {
   );
 };
 
+const ProfileRow = ({
+  icon: Icon,
+  label,
+  value,
+}) => (
+  <div className="flex items-center gap-3 rounded-[12px] bg-white/[0.07] px-3 py-3">
+
+    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-white/10 text-cyan-200">
+      <Icon size={14} />
+    </div>
+
+    <div className="min-w-0">
+
+      <p className="text-[8px] font-bold uppercase tracking-[0.09em] !text-blue-200">
+        {label}
+      </p>
+
+      <p className="mt-0.5 truncate text-[9.5px] font-bold !text-white">
+        {value}
+      </p>
+    </div>
+  </div>
+);
+
 const WorkspaceCard = ({
-  icon,
+  icon: Icon,
   title,
   description,
   to,
   featured = false,
-}) => {
-  return (
-    <Link
-      to={to}
-      className={`group rounded-2xl border p-5 transition hover:-translate-y-0.5 hover:shadow-lg ${
+  danger = false,
+}) => (
+  <Link
+    to={to}
+    className={`group rounded-[19px] border p-5 transition-all duration-250 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(20,46,79,0.08)] ${
+      featured
+        ? "border-[#1717E8] bg-[#1717E8]"
+        : danger
+          ? "border-red-200 bg-red-50/40"
+          : "border-[#DFE8F1] bg-white"
+    }`}
+  >
+
+    <div
+      className={`grid h-11 w-11 place-items-center rounded-[13px] ${
         featured
-          ? "bg-blue-600 border-blue-600 text-white"
-          : "bg-white border-slate-200"
+          ? "bg-white/15 text-white"
+          : danger
+            ? "bg-red-100 text-red-600"
+            : "bg-[#EEF2FF] text-[#1717E8]"
       }`}
     >
-      <div
-        className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg ${
-          featured
-            ? "bg-white/15"
-            : "bg-slate-100"
-        }`}
-      >
-        {icon}
-      </div>
+      <Icon size={19} />
+    </div>
 
-      <h3
-        className={`font-bold mt-4 ${
-          featured
-            ? "text-white"
-            : "text-slate-900"
-        }`}
-      >
-        {title}
-      </h3>
+    <p
+      className={`mt-4 text-[11px] font-extrabold ${
+        featured
+          ? "!text-white"
+          : danger
+            ? "!text-red-700"
+            : "!text-[#304861]"
+      }`}
+    >
+      {title}
+    </p>
 
-      <p
-        className={`text-xs leading-5 mt-1 ${
-          featured
-            ? "text-blue-100"
-            : "text-slate-500"
-        }`}
-      >
-        {description}
-      </p>
+    <p
+      className={`mt-1 text-[9px] leading-5 ${
+        featured
+          ? "!text-blue-100"
+          : danger
+            ? "!text-red-500"
+            : "!text-[#8796A6]"
+      }`}
+    >
+      {description}
+    </p>
 
+    <div
+      className={`mt-4 inline-flex items-center gap-1 text-[8.5px] font-extrabold ${
+        featured
+          ? "!text-white"
+          : danger
+            ? "!text-red-600"
+            : "!text-[#1717E8]"
+      }`}
+    >
       <span
-        className={`inline-block mt-4 text-[10px] font-bold ${
+        className={
           featured
-            ? "text-blue-100"
-            : "text-blue-600"
-        }`}
+            ? "!text-white"
+            : danger
+              ? "!text-red-600"
+              : "!text-[#1717E8]"
+        }
       >
-        Open →
+        Open
       </span>
-    </Link>
-  );
-};
+
+      <ArrowUpRight size={11} />
+    </div>
+  </Link>
+);
 
 const getInitials = (name) => {
-  if (!name) return "DR";
+  if (!name) {
+    return "DR";
+  }
 
   return name
     .split(" ")
