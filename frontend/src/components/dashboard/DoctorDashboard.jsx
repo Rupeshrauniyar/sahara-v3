@@ -1,850 +1,655 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-
 import {
-  Activity,
-  ArrowUpRight,
   CalendarDays,
-  CheckCircle2,
-  Clock3,
-  DollarSign,
+  ChevronRight,
   Droplets,
   HeartPulse,
   Hospital,
-  LoaderCircle,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  ShieldCheck,
   Sparkles,
   Stethoscope,
   UserRound,
   UsersRound,
-  Video,
+  X,
 } from "lucide-react";
 
-import StatCard from "./StatCard";
-import QuickAction from "./QuickAction";
+import {
+  NavLink,
+  useLocation,
+} from "react-router-dom";
 
 import {
-  apiRequest,
-  formatDate,
-} from "../../utils/api";
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-const STATUS_STYLES = {
-  Pending: "bg-amber-50 text-amber-700",
-  Confirmed: "bg-emerald-50 text-emerald-700",
-  Completed: "bg-blue-50 text-blue-700",
-  Cancelled: "bg-slate-100 text-slate-600",
-  Rejected: "bg-rose-50 text-rose-700",
-};
+import {
+  getPageTitle,
+  getRoleConfig,
+} from "../../config/roleConfig";
 
-const DoctorDashboard = ({ user }) => {
-  const [overview, setOverview] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+import saharaLogo from "../../assets/sahara-logo.png";
 
-  useEffect(() => {
-    const loadOverview = async () => {
-      try {
-        const data = await apiRequest(
-          "/dashboard/overview",
-        );
+/* =========================================================
+   NAV ICON
+========================================================= */
 
-        setOverview(
-          data?.overview || null,
-        );
-      } catch (err) {
-        setError(
-          err?.message ||
-            "Unable to load doctor dashboard.",
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
+const getNavIcon = (label = "") => {
+  const text = label.toLowerCase();
 
-    loadOverview();
-  }, []);
-
-  const stats = overview?.stats || {};
-  const profile = overview?.user || user;
-  const doctorProfile = overview?.doctorProfile;
-
-  const todaySchedule =
-    overview?.todaySchedule || [];
-
-  const weeklyCounts =
-    overview?.weeklyCounts || [];
-
-  const maxWeeklyCount = useMemo(
-    () =>
-      Math.max(
-        ...weeklyCounts.map(
-          (item) =>
-            Number(item.count || 0),
-        ),
-        1,
-      ),
-    [weeklyCounts],
-  );
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[520px] items-center justify-center">
-
-        <div className="text-center">
-
-          <div className="mx-auto grid h-14 w-14 place-items-center rounded-[17px] bg-[#1717E8] text-white shadow-[0_14px_30px_rgba(23,23,232,0.22)]">
-
-            <LoaderCircle
-              size={24}
-              className="animate-spin"
-            />
-          </div>
-
-          <p className="mt-4 text-[12px] font-bold text-[#526A82]">
-            Loading doctor workspace...
-          </p>
-        </div>
-      </div>
-    );
+  if (text.includes("overview")) {
+    return LayoutDashboard;
   }
 
+  if (text.includes("appointment")) {
+    return CalendarDays;
+  }
+
+  if (
+    text.includes("blood donor") ||
+    text.includes("blood network")
+  ) {
+    return Droplets;
+  }
+
+  if (text.includes("blood request")) {
+    return HeartPulse;
+  }
+
+  if (
+    text.includes("doctor") ||
+    text.includes("profile")
+  ) {
+    return Stethoscope;
+  }
+
+  if (text.includes("hospital")) {
+    return Hospital;
+  }
+
+  if (
+    text.includes("user") ||
+    text.includes("patient")
+  ) {
+    return UsersRound;
+  }
+
+  if (
+    text.includes("ai") ||
+    text.includes("assistant")
+  ) {
+    return Sparkles;
+  }
+
+  return ChevronRight;
+};
+
+/* =========================================================
+   ROLE ICON
+========================================================= */
+
+const getRoleIcon = (role) => {
+  switch (role) {
+    case "Doctor":
+      return Stethoscope;
+
+    case "HospitalAdmin":
+      return Hospital;
+
+    case "Admin":
+      return ShieldCheck;
+
+    default:
+      return UserRound;
+  }
+};
+
+/* =========================================================
+   NORMALIZE NAVIGATION
+========================================================= */
+
+const normalizeNavigation = (items = []) => {
+  const seenPaths = new Set();
+  const seenLabels = new Set();
+
+  const result = [];
+
+  for (const item of items) {
+    if (!item?.to || !item?.label) {
+      continue;
+    }
+
+    const normalizedPath =
+      item.to.trim().toLowerCase();
+
+    const normalizedLabel =
+      item.label
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+    const isOverview =
+      normalizedLabel === "overview" ||
+      normalizedPath === "/dashboard";
+
+    const overviewAlreadyExists =
+      result.some((existing) => {
+        const existingLabel =
+          existing.label
+            ?.trim()
+            .toLowerCase();
+
+        const existingPath =
+          existing.to
+            ?.trim()
+            .toLowerCase();
+
+        return (
+          existingLabel === "overview" ||
+          existingPath === "/dashboard"
+        );
+      });
+
+    if (
+      isOverview &&
+      overviewAlreadyExists
+    ) {
+      continue;
+    }
+
+    if (
+      seenPaths.has(normalizedPath) ||
+      seenLabels.has(normalizedLabel)
+    ) {
+      continue;
+    }
+
+    seenPaths.add(normalizedPath);
+    seenLabels.add(normalizedLabel);
+
+    result.push(item);
+  }
+
+  return result;
+};
+
+/* =========================================================
+   DASHBOARD LAYOUT
+========================================================= */
+
+const DashboardLayout = ({
+  user,
+  onLogout,
+  children,
+}) => {
+  const { pathname } =
+    useLocation();
+
+  const config =
+    getRoleConfig(user.role);
+
+  const pageTitle =
+    getPageTitle(
+      pathname,
+      user.role,
+    );
+
+  const [
+    mobileOpen,
+    setMobileOpen,
+  ] = useState(false);
+
+  const isFullHeightPage =
+    pathname === "/ai-bot";
+
+  const initials =
+    user.fullName
+      ?.split(" ")
+      .filter(Boolean)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
+
+  const RoleIcon =
+    getRoleIcon(user.role);
+
+  /* =====================================================
+     REMOVE DUPLICATE SIDEBAR ENTRIES
+  ===================================================== */
+
+  const navigation =
+    useMemo(
+      () =>
+        normalizeNavigation(
+          config?.nav || [],
+        ),
+      [config],
+    );
+
+  /* =====================================================
+     CHECK WHETHER AI ALREADY EXISTS
+  ===================================================== */
+
+  const hasAiNavigation =
+    useMemo(() => {
+      return navigation.some(
+        (item) => {
+          const label =
+            item.label
+              ?.toLowerCase() ||
+            "";
+
+          const path =
+            item.to
+              ?.toLowerCase() ||
+            "";
+
+          return (
+            label.includes("ai") ||
+            label.includes(
+              "assistant",
+            ) ||
+            path === "/ai-bot"
+          );
+        },
+      );
+    }, [navigation]);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   return (
-    <div className="mx-auto w-full max-w-[1500px] space-y-6">
+    <div className="min-h-screen bg-[#F6F8FC] text-[#10233F]">
 
-      {error && (
-        <div className="rounded-[16px] border border-red-200 bg-red-50 px-5 py-4 text-[11px] font-semibold text-red-700">
-          {error}
-        </div>
+      {/* =====================================================
+          MOBILE OVERLAY
+      ===================================================== */}
+
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close dashboard sidebar"
+          onClick={() =>
+            setMobileOpen(false)
+          }
+          className="fixed inset-0 z-40 bg-[#10233F]/35 backdrop-blur-[2px] lg:hidden"
+        />
       )}
 
-      {!doctorProfile && (
-        <div className="rounded-[16px] border border-amber-200 bg-amber-50 px-5 py-4 text-[11px] font-semibold text-amber-800">
-          Doctor profile not found. Complete your doctor registration to see full dashboard data.
+      {/* =====================================================
+          SIDEBAR
+      ===================================================== */}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[276px] flex-col border-r border-[#E2E8F1] bg-white transition-transform duration-300 lg:translate-x-0 ${
+          mobileOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
+        }`}
+      >
+
+        {/* LOGO */}
+
+        <div className="flex min-h-[88px] items-center justify-between border-b border-[#EEF2F6] px-5">
+
+          <NavLink
+            to="/"
+            aria-label="Return to SAHARA home"
+            className="flex items-center transition-opacity hover:opacity-85"
+          >
+            <img
+              src={saharaLogo}
+              alt="SAHARA"
+              className="h-[48px] w-auto max-w-[180px] object-contain"
+            />
+          </NavLink>
+
+          <button
+            type="button"
+            onClick={() =>
+              setMobileOpen(false)
+            }
+            className="grid h-9 w-9 place-items-center rounded-xl text-[#718297] transition hover:bg-[#F2F5F9] lg:hidden"
+            aria-label="Close menu"
+          >
+            <X size={18} />
+          </button>
         </div>
-      )}
 
-      {/* HERO */}
+        {/* WORKSPACE */}
 
-      <section className="relative overflow-hidden rounded-[26px] bg-[radial-gradient(circle_at_85%_25%,rgba(77,137,255,0.24),transparent_28%),linear-gradient(135deg,#0C2B50_0%,#164B87_55%,#3156E7_130%)] p-6 text-white shadow-[0_24px_55px_rgba(14,38,77,0.15)] sm:p-8">
+        <div className="px-5 pb-3 pt-6">
 
-        <div className="absolute -right-24 -top-28 h-80 w-80 rounded-full border-[45px] border-white/[0.04]" />
+          <p className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#9BA8B7]">
+            Workspace
+          </p>
+        </div>
 
-        <div className="relative flex flex-col justify-between gap-8 xl:flex-row xl:items-center">
+        {/* NAVIGATION */}
 
-          <div className="max-w-[700px]">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-5">
 
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.08] px-3 py-2">
+          {navigation.map(
+            (item) => {
+              const Icon =
+                getNavIcon(
+                  item.label,
+                );
 
-              <Stethoscope
-                size={14}
-                className="text-cyan-200"
-              />
-
-              <span className="!text-white text-[9px] font-extrabold uppercase tracking-[0.14em]">
-                Doctor Workspace
-              </span>
-            </div>
-
-            <h2 className="mt-5 font-[Manrope] text-[28px] font-extrabold tracking-[-0.045em] !text-white sm:text-[36px]">
-              Welcome, Dr.{" "}
-              {profile?.fullName || "Doctor"}
-            </h2>
-
-            <p className="mt-3 max-w-[620px] text-[12px] leading-6 !text-blue-100">
-              Manage today's consultations, monitor appointment activity and access SAHARA healthcare tools from one workspace.
-            </p>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-
-              <div className="inline-flex items-center gap-2 rounded-[11px] bg-white/10 px-3 py-2">
-
-                <Activity
-                  size={13}
-                  className={
-                    stats.isAvailable
-                      ? "text-emerald-300"
-                      : "text-slate-300"
+              return (
+                <NavLink
+                  key={`${item.to}-${item.label}`}
+                  to={item.to}
+                  end={
+                    item.to ===
+                    "/dashboard"
                   }
-                />
-
-                <span className="!text-white text-[9.5px] font-bold">
-                  {stats.isAvailable
-                    ? "Accepting patients"
-                    : "Currently unavailable"}
-                </span>
-              </div>
-
-              {doctorProfile?.specialization && (
-                <div className="inline-flex items-center gap-2 rounded-[11px] bg-white/10 px-3 py-2">
-
-                  <Stethoscope
-                    size={13}
-                    className="text-cyan-200"
-                  />
-
-                  <span className="!text-white text-[9.5px] font-bold">
-                    {doctorProfile.specialization}
-                  </span>
-                </div>
-              )}
-
-              {doctorProfile?.hospital?.name && (
-                <div className="inline-flex items-center gap-2 rounded-[11px] bg-white/10 px-3 py-2">
-
-                  <Hospital
-                    size={13}
-                    className="text-blue-200"
-                  />
-
-                  <span className="!text-white text-[9.5px] font-bold">
-                    {doctorProfile.hospital.name}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-
-              <Link
-                to="/appointment"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] bg-white px-4 text-[10px] font-extrabold shadow-sm transition hover:bg-[#F4F7FF]"
-              >
-                <CalendarDays
-                  size={15}
-                  className="text-[#1717E8]"
-                />
-
-                <span className="!text-[#10233F]">
-                  View Appointments
-                </span>
-              </Link>
-
-              <Link
-                to="/ai-bot"
-                className="inline-flex min-h-[44px] items-center gap-2 rounded-[12px] border border-white/20 bg-white/10 px-4 text-[10px] font-extrabold transition hover:bg-white/15"
-              >
-                <Sparkles
-                  size={15}
-                  className="text-white"
-                />
-
-                <span className="!text-white">
-                  Ask SAHARA AI
-                </span>
-              </Link>
-            </div>
-          </div>
-
-          <div className="min-w-[250px] rounded-[19px] border border-white/15 bg-white/[0.10] p-5 backdrop-blur">
-
-            <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] !text-blue-100">
-              Availability Status
-            </p>
-
-            <div className="mt-4 flex items-center justify-between gap-4">
-
-              <div>
-
-                <p className="font-[Manrope] text-[20px] font-extrabold !text-white">
-                  {stats.isAvailable
-                    ? "Available"
-                    : "Unavailable"}
-                </p>
-
-                <p className="mt-1 text-[9px] !text-blue-100">
-                  Appointment visibility
-                </p>
-              </div>
-
-              <div
-                className={`grid h-12 w-12 place-items-center rounded-[14px] ${
-                  stats.isAvailable
-                    ? "bg-emerald-400/15 text-emerald-300"
-                    : "bg-white/10 text-slate-300"
-                }`}
-              >
-                {stats.isAvailable ? (
-                  <CheckCircle2 size={22} />
-                ) : (
-                  <Clock3 size={22} />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* STATS */}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-        <StatCard
-          icon={UsersRound}
-          label="Patients Today"
-          value={String(
-            stats.patientsToday || 0,
-          )}
-          trend={`${stats.pendingAppointments || 0} pending`}
-          accent="blue"
-          helper="Today's active schedule"
-        />
-
-        <StatCard
-          icon={CalendarDays}
-          label="Appointments This Week"
-          value={String(
-            stats.appointmentsThisWeek || 0,
-          )}
-          accent="cyan"
-          helper="Weekly consultation load"
-        />
-
-        <StatCard
-          icon={Video}
-          label="Virtual Fee"
-          value={`Rs. ${
-            stats.virtualConsultationFee || 0
-          }`}
-          accent="violet"
-          helper="Virtual consultation"
-        />
-
-        <StatCard
-          icon={DollarSign}
-          label="Physical Fee"
-          value={`Rs. ${
-            stats.consultationFee || 0
-          }`}
-          accent="amber"
-          helper="Physical consultation"
-        />
-      </section>
-
-      {/* SCHEDULE + ACTIONS */}
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,0.75fr)]">
-
-        <section className="overflow-hidden rounded-[22px] border border-[#DFE8F1] bg-white shadow-[0_12px_34px_rgba(23,47,78,0.045)]">
-
-          <div className="flex items-center justify-between border-b border-[#EDF2F7] px-5 py-5 sm:px-6">
-
-            <div>
-              <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
-                Today's Workflow
-              </p>
-
-              <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
-                Today's Schedule
-              </h3>
-
-              <p className="mt-1 text-[9.5px] text-[#8998A8]">
-                Your upcoming patient consultations.
-              </p>
-            </div>
-
-            <Link
-              to="/appointment"
-              className="inline-flex items-center gap-1.5 text-[9.5px] font-extrabold !text-[#1717E8]"
-            >
-              <span className="!text-[#1717E8]">
-                View all
-              </span>
-
-              <ArrowUpRight
-                size={13}
-                className="text-[#1717E8]"
-              />
-            </Link>
-          </div>
-
-          {todaySchedule.length === 0 ? (
-            <div className="px-6 py-14 text-center">
-
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-[19px] bg-[#EEF2FF] text-[#1717E8]">
-                <CalendarDays size={25} />
-              </div>
-
-              <p className="mt-4 text-[12px] font-extrabold text-[#304861]">
-                No appointments today
-              </p>
-
-              <p className="mt-1 text-[9.5px] text-[#8998A8]">
-                Your schedule is currently clear.
-              </p>
-            </div>
-          ) : (
-            <div className="divide-y divide-[#EDF2F7]">
-
-              {todaySchedule.map(
-                (item) => (
-                  <div
-                    key={item._id}
-                    className="flex flex-col gap-4 px-5 py-4 transition hover:bg-[#FAFCFF] sm:flex-row sm:items-center sm:justify-between sm:px-6"
-                  >
-
-                    <div className="flex min-w-0 items-center gap-3">
-
-                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-[13px] bg-[#EEF2FF] text-[10px] font-extrabold text-[#1717E8]">
-                        {getInitials(
-                          item.patient?.fullName ||
-                            "Patient",
-                        )}
-                      </div>
-
-                      <div className="min-w-0">
-
-                        <p className="truncate text-[11.5px] font-extrabold text-[#2B425C]">
-                          {item.patient?.fullName ||
-                            "Patient"}
-                        </p>
-
-                        <p className="mt-1 text-[9px] text-[#8998A8]">
-                          {formatDate(
-                            item.appointmentDate,
-                            true,
-                          )}{" "}
-                          •{" "}
-                          {item.appointmentType}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`inline-flex self-start rounded-full px-3 py-1.5 text-[8.5px] font-extrabold sm:self-center ${
-                        STATUS_STYLES[item.status] ||
-                        "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {item.status}
-                    </span>
-                  </div>
-                ),
-              )}
-            </div>
-          )}
-        </section>
-
-        {/* QUICK ACTIONS */}
-
-        <section>
-
-          <div className="mb-4">
-            <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
-              Shortcuts
-            </p>
-
-            <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
-              Quick Actions
-            </h3>
-          </div>
-
-          <div className="space-y-3">
-
-            <QuickAction
-              icon={CalendarDays}
-              title="View Appointments"
-              description="Manage patient appointments"
-              to="/appointment"
-              variant="primary"
-            />
-
-            <QuickAction
-              icon={Droplets}
-              title="Blood Donors"
-              description="Find available blood donors"
-              to="/blood-donor"
-            />
-
-            <QuickAction
-              icon={HeartPulse}
-              title="Blood Requests"
-              description="Review active blood requests"
-              to="/bloodRequest"
-              variant="danger"
-            />
-
-            <QuickAction
-              icon={Sparkles}
-              title="SAHARA AI"
-              description="Open healthcare AI assistance"
-              to="/ai-bot"
-            />
-          </div>
-        </section>
-      </div>
-
-      {/* WEEKLY + PROFILE */}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-
-        <section className="rounded-[22px] border border-[#DFE8F1] bg-white p-5 shadow-[0_12px_34px_rgba(23,47,78,0.045)] sm:p-6">
-
-          <div className="flex items-start justify-between gap-4">
-
-            <div>
-              <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
-                Appointment Activity
-              </p>
-
-              <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
-                Weekly Overview
-              </h3>
-
-              <p className="mt-1 text-[9.5px] text-[#8998A8]">
-                Consultation activity across this week.
-              </p>
-            </div>
-
-            <Link
-              to="/appointment"
-              className="grid h-9 w-9 place-items-center rounded-[11px] bg-[#EEF2FF] text-[#1717E8]"
-            >
-              <ArrowUpRight size={15} />
-            </Link>
-          </div>
-
-          {weeklyCounts.length === 0 ? (
-            <div className="flex h-[190px] items-center justify-center text-[10px] font-semibold text-[#99A7B5]">
-              No weekly appointment data.
-            </div>
-          ) : (
-            <div className="mt-7 flex h-[190px] items-end gap-3">
-
-              {weeklyCounts.map(
-                (item) => {
-                  const height =
-                    Number(item.count || 0) > 0
-                      ? Math.max(
-                          (Number(item.count) /
-                            maxWeeklyCount) *
-                            100,
-                          12,
-                        )
-                      : 4;
-
-                  return (
-                    <div
-                      key={item.label}
-                      className="flex h-full flex-1 flex-col items-center justify-end gap-2"
-                    >
-
-                      <span className="text-[8px] font-bold text-[#708298]">
-                        {item.count}
-                      </span>
-
-                      <div className="flex h-[135px] w-full items-end justify-center rounded-[10px] bg-[#F5F7FB] px-1">
-
-                        <div
-                          className="w-full max-w-[42px] rounded-t-[8px] bg-[linear-gradient(180deg,#4A6BFF,#1717E8)] transition-all duration-500"
-                          style={{
-                            height: `${height}%`,
-                          }}
+                  className={({
+                    isActive,
+                  }) =>
+                    `group flex min-h-[48px] items-center gap-3 rounded-[14px] px-3.5 text-[13px] font-bold transition-all ${
+                      isActive
+                        ? "bg-[#1717E8] !text-white shadow-[0_10px_24px_rgba(23,23,232,0.18)]"
+                        : "text-[#5D7188] hover:bg-[#F1F4FF] hover:text-[#1717E8]"
+                    }`
+                  }
+                >
+                  {({
+                    isActive,
+                  }) => (
+                    <>
+                      <div
+                        className={`grid h-8 w-8 shrink-0 place-items-center rounded-[10px] transition ${
+                          isActive
+                            ? "bg-white/15 text-white"
+                            : "bg-[#F1F4F8] text-[#71859B] group-hover:bg-white group-hover:text-[#1717E8]"
+                        }`}
+                      >
+                        <Icon
+                          size={17}
+                          strokeWidth={2}
                         />
                       </div>
 
-                      <span className="text-[8.5px] font-bold text-[#8C9AAA]">
-                        {item.label}
+                      <span
+                        className={
+                          isActive
+                            ? "!text-white"
+                            : ""
+                        }
+                      >
+                        {
+                          item.label
+                        }
                       </span>
-                    </div>
-                  );
-                },
-              )}
-            </div>
+
+                      {isActive && (
+                        <ChevronRight
+                          size={14}
+                          className="text-white opacity-75"
+                        />
+                      )}
+                    </>
+                  )}
+                </NavLink>
+              );
+            },
           )}
-        </section>
+        </nav>
 
-        {/* PROFILE */}
+        {/* =================================================
+            SHOW AI CARD ONLY WHEN AI IS NOT ALREADY IN NAV
+        ================================================= */}
 
-        <section className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(145deg,#0C2B50,#164B87)] p-6 text-white shadow-[0_16px_38px_rgba(13,37,75,0.12)]">
+        {!hasAiNavigation && (
+          <div className="mx-4 mb-4 rounded-[18px] border border-[#DCE3FF] bg-[#F2F4FF] p-4">
 
-          <div className="absolute -right-20 -top-20 h-60 w-60 rounded-full border-[34px] border-white/[0.04]" />
+            <div className="flex items-center gap-3">
 
-          <div className="relative">
-
-            <div className="flex items-center justify-between">
-
-              <div>
-                <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] !text-cyan-200">
-                  Professional Profile
-                </p>
-
-                <h3 className="mt-1 font-[Manrope] text-[17px] font-extrabold !text-white">
-                  Doctor Profile
-                </h3>
-              </div>
-
-              <div className="grid h-10 w-10 place-items-center rounded-[12px] bg-white/10 text-cyan-200">
-                <Stethoscope size={19} />
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center gap-4">
-
-              <div className="grid h-14 w-14 place-items-center rounded-[16px] bg-white/10 text-[13px] font-extrabold !text-white ring-1 ring-white/10">
-                {getInitials(
-                  profile?.fullName,
-                )}
+              <div className="grid h-9 w-9 place-items-center rounded-[11px] bg-[#1717E8] text-white">
+                <Sparkles
+                  size={17}
+                />
               </div>
 
               <div>
-                <p className="font-[Manrope] text-[19px] font-extrabold !text-white">
-                  {profile?.fullName ||
-                    "Doctor"}
+
+                <p className="text-[10px] font-extrabold text-[#283F59]">
+                  SAHARA AI
                 </p>
 
-                <p className="mt-1 text-[10px] font-semibold !text-blue-200">
-                  {doctorProfile?.specialization ||
-                    "Medical Professional"}
+                <p className="mt-0.5 text-[8px] font-medium text-[#8393A5]">
+                  Healthcare navigation
                 </p>
               </div>
             </div>
 
-            <div className="mt-6 space-y-3">
+            <NavLink
+              to="/ai-bot"
+              className="mt-3 flex items-center justify-between rounded-[10px] bg-white px-3 py-2 text-[9px] font-extrabold !text-[#1717E8] shadow-sm transition hover:bg-[#FBFCFF]"
+            >
+              <span className="!text-[#1717E8]">
+                Open Assistant
+              </span>
 
-              <ProfileRow
-                icon={UserRound}
-                label="Email"
-                value={
-                  profile?.email ||
-                  "Not provided"
-                }
+              <ChevronRight
+                size={13}
               />
+            </NavLink>
+          </div>
+        )}
 
-              <ProfileRow
-                icon={Activity}
-                label="Experience"
-                value={
-                  doctorProfile?.experience !==
-                  undefined
-                    ? `${doctorProfile.experience} years`
-                    : "Not set"
-                }
-              />
+        {/* USER */}
 
-              <ProfileRow
-                icon={Hospital}
-                label="Practice"
-                value={
-                  doctorProfile?.hospital?.name ||
-                  doctorProfile?.practiceType ||
-                  "Independent"
-                }
-              />
-            </div>
+        <div className="border-t border-[#EDF1F5] p-4">
 
-            <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-5">
+          <div className="mb-2 flex items-center gap-3 rounded-[14px] p-2">
 
-              <div className="flex items-center gap-2">
+            <div className="relative">
 
-                <CheckCircle2
-                  size={14}
-                  className={
-                    profile?.isVerified
-                      ? "text-emerald-300"
-                      : "text-amber-300"
-                  }
-                />
-
-                <span className="text-[9px] font-semibold !text-blue-100">
-                  {profile?.isVerified
-                    ? "Credentials verified"
-                    : "Verification pending"}
-                </span>
+              <div className="grid h-11 w-11 place-items-center rounded-[13px] bg-[#1717E8] text-[11px] font-extrabold text-white shadow-[0_8px_20px_rgba(23,23,232,0.17)]">
+                {initials}
               </div>
 
-              <Link
-                to="/doctor"
-                className="inline-flex items-center gap-1.5 rounded-[10px] bg-white px-3 py-2 text-[8.5px] font-extrabold shadow-sm"
-              >
-                <span className="!text-[#10233F]">
-                  Manage Profile
-                </span>
+              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-[3px] border-white bg-emerald-500" />
+            </div>
 
-                <ArrowUpRight
-                  size={12}
-                  className="text-[#1717E8]"
+            <div className="min-w-0 flex-1">
+
+              <p className="truncate text-[12px] font-extrabold text-[#20364F]">
+                {user.fullName}
+              </p>
+
+              <div className="mt-0.5 flex items-center gap-1.5 text-[9px] font-semibold text-[#8796A7]">
+
+                <RoleIcon
+                  size={11}
                 />
-              </Link>
+
+                {config.label}
+              </div>
             </div>
           </div>
-        </section>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="flex min-h-[43px] w-full items-center gap-3 rounded-[12px] px-3 text-[11px] font-bold text-[#738396] transition hover:bg-red-50 hover:text-red-600"
+          >
+            <LogOut
+              size={16}
+            />
+
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* =====================================================
+          MAIN AREA
+      ===================================================== */}
+
+      <div className="min-h-screen lg:pl-[276px]">
+
+        {/* HEADER */}
+
+        <header className="sticky top-0 z-30 border-b border-[#E2E9F2] bg-white/95 backdrop-blur-xl">
+
+          <div className="flex min-h-[82px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-10">
+
+            <div className="flex min-w-0 items-center gap-3">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setMobileOpen(true)
+                }
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] border border-[#E0E7EF] bg-white text-[#52677D] lg:hidden"
+                aria-label="Open dashboard menu"
+              >
+                <Menu
+                  size={19}
+                />
+              </button>
+
+              <div className="min-w-0">
+
+                <div className="flex items-center gap-2">
+
+                  <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#1717E8]">
+                    {config.label}
+                  </span>
+
+                  <span className="h-1 w-1 rounded-full bg-[#B7C2CF]" />
+
+                  <span className="hidden text-[9px] font-semibold text-[#97A4B3] sm:inline">
+                    SAHARA Workspace
+                  </span>
+                </div>
+
+                <h1 className="mt-1 truncate font-[Manrope] text-[21px] font-extrabold tracking-[-0.035em] text-[#10233F] sm:text-[25px]">
+                  {pageTitle}
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-3">
+
+              <NavLink
+                to="/"
+                className="hidden min-h-[40px] items-center gap-2 rounded-[11px] border border-[#DFE6EF] bg-white px-3.5 text-[9px] font-extrabold !text-[#526A82] transition hover:border-[#C9D2E0] hover:bg-[#F7F9FC] hover:!text-[#1717E8] sm:inline-flex"
+              >
+                <HeartPulse
+                  size={14}
+                />
+
+                <span>
+                  Home
+                </span>
+              </NavLink>
+
+              <div className="hidden items-center gap-2 rounded-full border border-[#DCE5EF] bg-[#F8FAFD] px-3 py-2 md:flex">
+
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+
+                <span className="text-[9px] font-extrabold text-[#5A6F84]">
+                  System online
+                </span>
+              </div>
+
+              <div className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#1717E8] text-[10px] font-extrabold text-white">
+                {initials}
+              </div>
+
+              <button
+                type="button"
+                onClick={onLogout}
+                className="grid h-10 w-10 place-items-center rounded-[11px] border border-red-100 bg-red-50 text-red-600 lg:hidden"
+                aria-label="Sign out"
+              >
+                <LogOut
+                  size={15}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* MOBILE NAV */}
+
+          <div className="flex gap-2 overflow-x-auto border-t border-[#EEF2F6] px-4 py-3 lg:hidden">
+
+            {navigation.map(
+              (item) => {
+                const Icon =
+                  getNavIcon(
+                    item.label,
+                  );
+
+                return (
+                  <NavLink
+                    key={`mobile-${item.to}-${item.label}`}
+                    to={item.to}
+                    end={
+                      item.to ===
+                      "/dashboard"
+                    }
+                    className={({
+                      isActive,
+                    }) =>
+                      `flex shrink-0 items-center gap-2 rounded-[10px] px-3 py-2 text-[10px] font-bold ${
+                        isActive
+                          ? "bg-[#1717E8] !text-white"
+                          : "bg-[#F1F4F8] text-[#657A90]"
+                      }`
+                    }
+                  >
+                    {({
+                      isActive,
+                    }) => (
+                      <>
+                        <Icon
+                          size={14}
+                        />
+
+                        <span
+                          className={
+                            isActive
+                              ? "!text-white"
+                              : ""
+                          }
+                        >
+                          {
+                            item.label
+                          }
+                        </span>
+                      </>
+                    )}
+                  </NavLink>
+                );
+              },
+            )}
+          </div>
+        </header>
+
+        {/* CONTENT */}
+
+        <main
+          className={`${
+            isFullHeightPage
+              ? "flex min-h-[calc(100vh-82px)] flex-col overflow-hidden"
+              : "p-4 sm:p-6 lg:p-8 xl:p-10"
+          }`}
+        >
+          {children}
+        </main>
       </div>
-
-      {/* WORKSPACE */}
-
-      <section>
-
-        <div className="mb-4">
-
-          <p className="text-[9px] font-extrabold uppercase tracking-[0.13em] text-[#1717E8]">
-            Tools
-          </p>
-
-          <h3 className="mt-1 font-[Manrope] text-[16px] font-extrabold text-[#1C344F]">
-            Doctor Workspace
-          </h3>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-
-          <WorkspaceCard
-            icon={CalendarDays}
-            title="Appointments"
-            description="Manage patient appointments."
-            to="/appointment"
-          />
-
-          <WorkspaceCard
-            icon={Droplets}
-            title="Blood Donors"
-            description="Find active blood donors."
-            to="/blood-donor"
-          />
-
-          <WorkspaceCard
-            icon={HeartPulse}
-            title="Blood Requests"
-            description="Review active requests."
-            to="/bloodRequest"
-            danger
-          />
-
-          <WorkspaceCard
-            icon={Stethoscope}
-            title="My Profile"
-            description="Review your doctor profile."
-            to="/doctor"
-          />
-
-          <WorkspaceCard
-            icon={Sparkles}
-            title="SAHARA AI"
-            description="Healthcare AI assistance."
-            to="/ai-bot"
-            featured
-          />
-        </div>
-      </section>
     </div>
   );
 };
 
-const ProfileRow = ({
-  icon: Icon,
-  label,
-  value,
-}) => (
-  <div className="flex items-center gap-3 rounded-[12px] bg-white/[0.07] px-3 py-3">
-
-    <div className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-white/10 text-cyan-200">
-      <Icon size={14} />
-    </div>
-
-    <div className="min-w-0">
-
-      <p className="text-[8px] font-bold uppercase tracking-[0.09em] !text-blue-200">
-        {label}
-      </p>
-
-      <p className="mt-0.5 truncate text-[9.5px] font-bold !text-white">
-        {value}
-      </p>
-    </div>
-  </div>
-);
-
-const WorkspaceCard = ({
-  icon: Icon,
-  title,
-  description,
-  to,
-  featured = false,
-  danger = false,
-}) => (
-  <Link
-    to={to}
-    className={`group rounded-[19px] border p-5 transition-all duration-250 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(20,46,79,0.08)] ${
-      featured
-        ? "border-[#1717E8] bg-[#1717E8]"
-        : danger
-          ? "border-red-200 bg-red-50/40"
-          : "border-[#DFE8F1] bg-white"
-    }`}
-  >
-
-    <div
-      className={`grid h-11 w-11 place-items-center rounded-[13px] ${
-        featured
-          ? "bg-white/15 text-white"
-          : danger
-            ? "bg-red-100 text-red-600"
-            : "bg-[#EEF2FF] text-[#1717E8]"
-      }`}
-    >
-      <Icon size={19} />
-    </div>
-
-    <p
-      className={`mt-4 text-[11px] font-extrabold ${
-        featured
-          ? "!text-white"
-          : danger
-            ? "!text-red-700"
-            : "!text-[#304861]"
-      }`}
-    >
-      {title}
-    </p>
-
-    <p
-      className={`mt-1 text-[9px] leading-5 ${
-        featured
-          ? "!text-blue-100"
-          : danger
-            ? "!text-red-500"
-            : "!text-[#8796A6]"
-      }`}
-    >
-      {description}
-    </p>
-
-    <div
-      className={`mt-4 inline-flex items-center gap-1 text-[8.5px] font-extrabold ${
-        featured
-          ? "!text-white"
-          : danger
-            ? "!text-red-600"
-            : "!text-[#1717E8]"
-      }`}
-    >
-      <span
-        className={
-          featured
-            ? "!text-white"
-            : danger
-              ? "!text-red-600"
-              : "!text-[#1717E8]"
-        }
-      >
-        Open
-      </span>
-
-      <ArrowUpRight size={11} />
-    </div>
-  </Link>
-);
-
-const getInitials = (name) => {
-  if (!name) {
-    return "DR";
-  }
-
-  return name
-    .split(" ")
-    .filter(Boolean)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
-};
-
-export default DoctorDashboard;
+export default DashboardLayout;

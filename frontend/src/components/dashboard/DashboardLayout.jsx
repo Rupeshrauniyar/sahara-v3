@@ -22,6 +22,7 @@ import {
 
 import {
   useEffect,
+  useMemo,
   useState,
 } from "react";
 
@@ -37,8 +38,7 @@ import saharaLogo from "../../assets/sahara-logo.png";
 ========================================================= */
 
 const getNavIcon = (label = "") => {
-  const text =
-    label.toLowerCase();
+  const text = label.toLowerCase();
 
   if (text.includes("overview")) {
     return LayoutDashboard;
@@ -108,6 +108,74 @@ const getRoleIcon = (role) => {
 };
 
 /* =========================================================
+   REMOVE DUPLICATE NAV ITEMS
+========================================================= */
+
+const normalizeNavigation = (items = []) => {
+  const result = [];
+  const seenPaths = new Set();
+  const seenLabels = new Set();
+
+  for (const item of items) {
+    if (!item?.to || !item?.label) {
+      continue;
+    }
+
+    const path =
+      item.to.trim().toLowerCase();
+
+    const label =
+      item.label
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+
+    const isOverview =
+      label === "overview" ||
+      path === "/dashboard";
+
+    const alreadyHasOverview =
+      result.some((existing) => {
+        const existingPath =
+          existing.to
+            ?.trim()
+            .toLowerCase();
+
+        const existingLabel =
+          existing.label
+            ?.trim()
+            .toLowerCase();
+
+        return (
+          existingPath === "/dashboard" ||
+          existingLabel === "overview"
+        );
+      });
+
+    if (
+      isOverview &&
+      alreadyHasOverview
+    ) {
+      continue;
+    }
+
+    if (
+      seenPaths.has(path) ||
+      seenLabels.has(label)
+    ) {
+      continue;
+    }
+
+    seenPaths.add(path);
+    seenLabels.add(label);
+
+    result.push(item);
+  }
+
+  return result;
+};
+
+/* =========================================================
    DASHBOARD LAYOUT
 ========================================================= */
 
@@ -133,6 +201,15 @@ const DashboardLayout = ({
     setMobileOpen,
   ] = useState(false);
 
+  const navigation =
+    useMemo(
+      () =>
+        normalizeNavigation(
+          config?.nav || [],
+        ),
+      [config],
+    );
+
   const isFullHeightPage =
     pathname === "/ai-bot";
 
@@ -140,10 +217,7 @@ const DashboardLayout = ({
     user.fullName
       ?.split(" ")
       .filter(Boolean)
-      .map(
-        (part) =>
-          part[0],
-      )
+      .map((part) => part[0])
       .join("")
       .slice(0, 2)
       .toUpperCase() || "?";
@@ -158,9 +232,7 @@ const DashboardLayout = ({
   return (
     <div className="min-h-screen bg-[#F6F8FC] text-[#10233F]">
 
-      {/* =====================================================
-          MOBILE OVERLAY
-      ===================================================== */}
+      {/* MOBILE OVERLAY */}
 
       {mobileOpen && (
         <button
@@ -173,9 +245,7 @@ const DashboardLayout = ({
         />
       )}
 
-      {/* =====================================================
-          SIDEBAR
-      ===================================================== */}
+      {/* SIDEBAR */}
 
       <aside
         className={`fixed inset-y-0 left-0 z-50 flex w-[276px] flex-col border-r border-[#E2E8F1] bg-white transition-transform duration-300 lg:translate-x-0 ${
@@ -185,10 +255,7 @@ const DashboardLayout = ({
         }`}
       >
 
-        {/* =================================================
-            LOGO
-            CLICKING LOGO RETURNS TO LANDING PAGE
-        ================================================= */}
+        {/* LOGO */}
 
         <div className="flex min-h-[88px] items-center justify-between border-b border-[#EEF2F6] px-5">
 
@@ -216,9 +283,7 @@ const DashboardLayout = ({
           </button>
         </div>
 
-        {/* =================================================
-            WORKSPACE TITLE
-        ================================================= */}
+        {/* WORKSPACE TITLE */}
 
         <div className="px-5 pb-3 pt-6">
 
@@ -227,13 +292,11 @@ const DashboardLayout = ({
           </p>
         </div>
 
-        {/* =================================================
-            NAVIGATION
-        ================================================= */}
+        {/* NAVIGATION */}
 
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-5">
 
-          {config.nav.map(
+          {navigation.map(
             (item) => {
               const Icon =
                 getNavIcon(
@@ -242,7 +305,7 @@ const DashboardLayout = ({
 
               return (
                 <NavLink
-                  key={item.to}
+                  key={`${item.to}-${item.label}`}
                   to={item.to}
                   end={
                     item.to ===
@@ -253,7 +316,7 @@ const DashboardLayout = ({
                   }) =>
                     `group flex min-h-[48px] items-center gap-3 rounded-[14px] px-3.5 text-[13px] font-bold transition-all ${
                       isActive
-                        ? "bg-[#1717E8] text-white shadow-[0_10px_24px_rgba(23,23,232,0.18)]"
+                        ? "bg-[#1717E8] !text-white shadow-[0_10px_24px_rgba(23,23,232,0.18)]"
                         : "text-[#5D7188] hover:bg-[#F1F4FF] hover:text-[#1717E8]"
                     }`
                   }
@@ -275,7 +338,13 @@ const DashboardLayout = ({
                         />
                       </div>
 
-                      <span className="flex-1">
+                      <span
+                        className={
+                          isActive
+                            ? "!text-white"
+                            : ""
+                        }
+                      >
                         {
                           item.label
                         }
@@ -284,7 +353,7 @@ const DashboardLayout = ({
                       {isActive && (
                         <ChevronRight
                           size={14}
-                          className="opacity-75"
+                          className="text-white opacity-75"
                         />
                       )}
                     </>
@@ -295,48 +364,7 @@ const DashboardLayout = ({
           )}
         </nav>
 
-        {/* =================================================
-            SAHARA AI MINI PANEL
-        ================================================= */}
-
-        <div className="mx-4 mb-4 rounded-[18px] border border-[#DCE3FF] bg-[#F2F4FF] p-4">
-
-          <div className="flex items-center gap-3">
-
-            <div className="grid h-9 w-9 place-items-center rounded-[11px] bg-[#1717E8] text-white">
-
-              <Sparkles
-                size={17}
-              />
-            </div>
-
-            <div>
-
-              <p className="text-[10px] font-extrabold text-[#283F59]">
-                SAHARA AI
-              </p>
-
-              <p className="mt-0.5 text-[8px] font-medium text-[#8393A5]">
-                Healthcare navigation
-              </p>
-            </div>
-          </div>
-
-          <NavLink
-            to="/ai-bot"
-            className="mt-3 flex items-center justify-between rounded-[10px] bg-white px-3 py-2 text-[9px] font-extrabold text-[#1717E8] shadow-sm transition hover:bg-[#FBFCFF]"
-          >
-            Open Assistant
-
-            <ChevronRight
-              size={13}
-            />
-          </NavLink>
-        </div>
-
-        {/* =================================================
-            USER ACCOUNT
-        ================================================= */}
+        {/* USER ACCOUNT */}
 
         <div className="border-t border-[#EDF1F5] p-4">
 
@@ -373,30 +401,22 @@ const DashboardLayout = ({
             onClick={onLogout}
             className="flex min-h-[43px] w-full items-center gap-3 rounded-[12px] px-3 text-[11px] font-bold text-[#738396] transition hover:bg-red-50 hover:text-red-600"
           >
-            <LogOut
-              size={16}
-            />
+            <LogOut size={16} />
 
             Sign out
           </button>
         </div>
       </aside>
 
-      {/* =====================================================
-          MAIN AREA
-      ===================================================== */}
+      {/* MAIN AREA */}
 
       <div className="min-h-screen lg:pl-[276px]">
 
-        {/* =================================================
-            HEADER
-        ================================================= */}
+        {/* HEADER */}
 
         <header className="sticky top-0 z-30 border-b border-[#E2E9F2] bg-white/95 backdrop-blur-xl">
 
           <div className="flex min-h-[82px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-10">
-
-            {/* LEFT */}
 
             <div className="flex min-w-0 items-center gap-3">
 
@@ -408,9 +428,7 @@ const DashboardLayout = ({
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] border border-[#E0E7EF] bg-white text-[#52677D] lg:hidden"
                 aria-label="Open dashboard menu"
               >
-                <Menu
-                  size={19}
-                />
+                <Menu size={19} />
               </button>
 
               <div className="min-w-0">
@@ -418,9 +436,7 @@ const DashboardLayout = ({
                 <div className="flex items-center gap-2">
 
                   <span className="text-[9px] font-extrabold uppercase tracking-[0.16em] text-[#1717E8]">
-                    {
-                      config.label
-                    }
+                    {config.label}
                   </span>
 
                   <span className="h-1 w-1 rounded-full bg-[#B7C2CF]" />
@@ -436,24 +452,18 @@ const DashboardLayout = ({
               </div>
             </div>
 
-            {/* RIGHT */}
-
             <div className="flex shrink-0 items-center gap-3">
-
-              {/* HOME BUTTON */}
 
               <NavLink
                 to="/"
-                className="hidden min-h-[40px] items-center gap-2 rounded-[11px] border border-[#DFE6EF] bg-white px-3.5 text-[9px] font-extrabold text-[#526A82] transition hover:border-[#C9D2E0] hover:bg-[#F7F9FC] hover:text-[#1717E8] sm:inline-flex"
+                className="hidden min-h-[40px] items-center gap-2 rounded-[11px] border border-[#DFE6EF] bg-white px-3.5 text-[9px] font-extrabold !text-[#526A82] transition hover:border-[#C9D2E0] hover:bg-[#F7F9FC] hover:!text-[#1717E8] sm:inline-flex"
               >
-                <HeartPulse
-                  size={14}
-                />
+                <HeartPulse size={14} />
 
-                Home
+                <span>
+                  Home
+                </span>
               </NavLink>
-
-              {/* ONLINE */}
 
               <div className="hidden items-center gap-2 rounded-full border border-[#DCE5EF] bg-[#F8FAFD] px-3 py-2 md:flex">
 
@@ -464,13 +474,9 @@ const DashboardLayout = ({
                 </span>
               </div>
 
-              {/* USER AVATAR */}
-
               <div className="grid h-10 w-10 place-items-center rounded-[12px] bg-[#1717E8] text-[10px] font-extrabold text-white">
                 {initials}
               </div>
-
-              {/* MOBILE LOGOUT */}
 
               <button
                 type="button"
@@ -478,20 +484,16 @@ const DashboardLayout = ({
                 className="grid h-10 w-10 place-items-center rounded-[11px] border border-red-100 bg-red-50 text-red-600 lg:hidden"
                 aria-label="Sign out"
               >
-                <LogOut
-                  size={15}
-                />
+                <LogOut size={15} />
               </button>
             </div>
           </div>
 
-          {/* =================================================
-              MOBILE NAV
-          ================================================= */}
+          {/* MOBILE NAV */}
 
           <div className="flex gap-2 overflow-x-auto border-t border-[#EEF2F6] px-4 py-3 lg:hidden">
 
-            {config.nav.map(
+            {navigation.map(
               (item) => {
                 const Icon =
                   getNavIcon(
@@ -500,9 +502,7 @@ const DashboardLayout = ({
 
                 return (
                   <NavLink
-                    key={
-                      item.to
-                    }
+                    key={`mobile-${item.to}-${item.label}`}
                     to={item.to}
                     end={
                       item.to ===
@@ -513,18 +513,30 @@ const DashboardLayout = ({
                     }) =>
                       `flex shrink-0 items-center gap-2 rounded-[10px] px-3 py-2 text-[10px] font-bold ${
                         isActive
-                          ? "bg-[#1717E8] text-white"
+                          ? "bg-[#1717E8] !text-white"
                           : "bg-[#F1F4F8] text-[#657A90]"
                       }`
                     }
                   >
-                    <Icon
-                      size={14}
-                    />
+                    {({
+                      isActive,
+                    }) => (
+                      <>
+                        <Icon size={14} />
 
-                    {
-                      item.label
-                    }
+                        <span
+                          className={
+                            isActive
+                              ? "!text-white"
+                              : ""
+                          }
+                        >
+                          {
+                            item.label
+                          }
+                        </span>
+                      </>
+                    )}
                   </NavLink>
                 );
               },
@@ -532,9 +544,7 @@ const DashboardLayout = ({
           </div>
         </header>
 
-        {/* =================================================
-            CONTENT
-        ================================================= */}
+        {/* CONTENT */}
 
         <main
           className={`${
